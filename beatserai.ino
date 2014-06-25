@@ -5,7 +5,7 @@
 #include "RingBuffer.h"
 #include "esOctoWS2811.h"
 #include "es_analyze_fft1024.h"
-#include "BeatExtractor.h"
+//#include "BeatExtractor.h"
 
 //------------------------------------------------------------------------------
 // Audio constants

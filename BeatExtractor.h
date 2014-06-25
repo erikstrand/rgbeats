@@ -7,11 +7,11 @@
 #define BEATSERAI_PULSEEXTRACTOR
 
 #include <cmath>
-#include "Complex.hpp"
-#include "FFT.hpp"
-#include "utils.hpp"
-#include "RingBuffer.hpp"
-#include <fstream>
+#include "Complex.h"
+#include "FFT.h"
+#include "utils.h"
+#include "RingBuffer.h"
+//#include <fstream>
 
 
 //==============================================================================
@@ -147,7 +147,7 @@ unsigned BeatExtractor<T, M, W, S, SPH>::findFrequency () {
       }
     }
     if (newPeak > T(0.5)) {
-      std::cout << "Located peak at " << newPeakIndex << " (" << beatsPerWindow << " beats out)" << '\n';
+      //std::cout << "Located peak at " << newPeakIndex << " (" << beatsPerWindow << " beats out)" << '\n';
       subsampleHfcsPerBeat = T(newPeakIndex) / T(beatsPerWindow);
       break;
     } else {
@@ -209,6 +209,7 @@ void BeatExtractor<T, M, W, S, SPH>::findPhase (unsigned hfcsPerBeat) {
 }
 
 //------------------------------------------------------------------------------
+/*
 template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
 void BeatExtractor<T, M, W, S, SPH>::saveWorkingMemory (char const* name, bool bank2) const {
   std::ofstream outfile(name);
@@ -218,6 +219,7 @@ void BeatExtractor<T, M, W, S, SPH>::saveWorkingMemory (char const* name, bool b
   }
   outfile.close();
 }
+*/
 
 #endif // BEATSERAI_PULSEEXTRACTOR
 
