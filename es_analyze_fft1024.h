@@ -49,7 +49,7 @@ class EsAudioAnalyzeFFT1024 : public AudioStream
 public:
 	EsAudioAnalyzeFFT1024(uint8_t navg = 1, const int16_t *win = AudioWindowHanning1024)
 	  : AudioStream(1, inputQueueArray), window(win), 
-	    state(0), outputflag(false) { init(); }
+	    state(0), outputflag(false), sampleNumber(0) { init(); }
 
 	bool available() {
 		if (outputflag == true) {
@@ -71,6 +71,8 @@ private:
 	//uint8_t naverage;
 	volatile bool outputflag;
 	audio_block_t *inputQueueArray[1];
+ public:
+   unsigned sampleNumber;
 };
 
 #endif

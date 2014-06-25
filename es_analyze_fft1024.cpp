@@ -67,6 +67,7 @@ static void apply_window_to_fft_buffer(void *buffer, const void *window)
 
 void EsAudioAnalyzeFFT1024::update(void)
 {
+   sampleNumber += 128;
 	audio_block_t *block;
 
 	block = receiveReadOnly();
