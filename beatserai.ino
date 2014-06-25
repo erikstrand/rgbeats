@@ -5,7 +5,7 @@
 #include "RingBuffer.h"
 #include "esOctoWS2811.h"
 #include "es_analyze_fft1024.h"
-//#include "BeatExtractor.h"
+#include "BeatExtractor.h"
 
 //------------------------------------------------------------------------------
 // Audio constants
@@ -61,7 +61,8 @@ void colorChange(int color) {
 
 
 //------------------------------------------------------------------------------
-RingBufferWithMedian<int, 64> hfcBuffer;
+//RingBufferWithMedian<int, 64> hfcBuffer;
+BeatExtractor<float, 32, 512, 256, 512> extractor;
 
 
 //------------------------------------------------------------------------------
@@ -100,8 +101,9 @@ void loop() {
          Serial.print("overflow may occur!");
       }
     }
-    hfcBuffer.addSample(hfc);
-    if (hfcBuffer.newestSample() > hfcBuffer.median() + (hfcBuffer.stddeviation() >> 1)) {
+    extractor.addSample((float)hfc);
+    //hfcBuffer.addSample(hfc);
+    if (extractor.rawHFC.newestSample() > extractor.rawHFC.median() + (extractor.rawHFC.stddeviation() * 0.5)) {
       color = 2;
     } else {
       color = 0;
