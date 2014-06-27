@@ -119,7 +119,7 @@ void EsAudioAnalyzeFFT1024::update(void)
 		if (window) apply_window_to_fft_buffer(buffer, window);
 		arm_cfft_radix4_q15(&fft_inst, buffer);
 		// TODO: support averaging multiple copies
-		for (int i=0; i < 1024; i++) {
+		for (int i=0; i < 512; i++) {
 			uint32_t tmp = *((uint32_t *)buffer + i); // real & imag
 			uint32_t magsq = multiply_16tx16t_add_16bx16b(tmp, tmp);
 			output[i] = sqrt_uint32_approx(magsq);

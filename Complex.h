@@ -113,9 +113,15 @@ inline void Complex<float>::zero (Complex<float>* data, unsigned n) {
 
 //------------------------------------------------------------------------------
 // Specialization for ints (uses memset)
+/*
 template <>
 inline void Complex<int>::zero (Complex<int>* data, unsigned n) {
   memset(data, 0, n * sizeof(Complex<int>));
+}
+*/
+template <>
+inline void Complex<int16_t>::zero (Complex<int16_t>* data, unsigned n) {
+  memset(data, 0, n * sizeof(Complex<int16_t>));
 }
 
 

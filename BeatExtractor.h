@@ -7,6 +7,7 @@
 #define BEATSERAI_PULSEEXTRACTOR
 
 #include <cmath>
+#include <arm_math.h>
 #include "Complex.h"
 #include "FFT.h"
 #include "utils.h"
@@ -29,26 +30,33 @@ extern Profiler profiler;
  * T must be zeroable with memset and copyable with memcpy.
  * Smooths HFC samples with trailing median of M samples.
  * Calculates autocorrelation on windows of W samples, with a hop size of S samples.
+ * 2*W must be an allowed value for an arm_cfft.
  * S is assumed to divide ~0+1 (one larger than the largest unsigned).
  * SPH is audio samples per HFC sample; used to make a BeatHypothesis in sample space.
  */
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
 class BeatExtractor {
 public:
-  RingBufferWithMedian<T, M> rawHFC; // Unaltered HFC samples
-  RingBuffer<T, W> smoothedHFC;      // HFC series with trailing median subtracted
-  Complex<T> workingMemory[2*W];     // Need twice the window size, so that we can pad with zeros
-  Complex<T> workingMemory2[2*W];    // Need a second bank for cross correlation calculation
-  BeatHypothesis beat;               // Most recent guess at the pulse.
+  RingBufferWithMedian<int16_t, M> rawHFC;     // Unaltered HFC samples
+  RingBuffer<int16_t, W> smoothedHFC;   // HFC series with trailing median subtracted
+  Complex<int16_t> workingMemory[2*W];  // Need twice the window size, so that we can pad with zeros
+  Complex<int16_t> workingMemory2[2*W]; // Need a second bank for cross correlation calculation
+  BeatHypothesis beat;                  // Most recent guess at the pulse.
+  // should be static const...
+  arm_cfft_radix4_instance_q15 fft_inst;
+  arm_cfft_radix4_instance_q15 ifft_inst;
 
 public:
-  inline BeatExtractor () {}
+  inline BeatExtractor () {
+    arm_cfft_radix4_init_q15(&fft_inst, 2*W, 0, 1);
+    arm_cfft_radix4_init_q15(&ifft_inst, 2*W, 1, 1);
+  }
 
   // Adds an HFC sample to rawHFC and smoothedHFC.
   // If we have collected S new HFC samples, a new tempo hypothesis is generated and it returns 1.
   // Otherwise, it returns 0 without updating its BeatHypothesis.
   // Sets beat.measurementSample.
-  int addSample (T x);
+  int addSample (int16_t x);
 
   // Calculates the autocorrelation of the most recent W samples in smoothedHFC.
   // The FFT of the last W HFC samples is left in workingMemory,
@@ -68,12 +76,25 @@ public:
   void findPhase (unsigned hfcsPerBeat);
 
   // Writes a csv containing the real parts of the contents of workingMemory(2).
-  void saveWorkingMemory (char const* name, bool bank2=false) const;
+  //void saveWorkingMemory (char const* name, bool bank2=false) const;
 };
 
 //------------------------------------------------------------------------------
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-int BeatExtractor<T, M, W, S, SPH>::addSample (T x) {
+/*
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+arm_cfft_radix4_instance_q15 BeatExtractor<M, W, S, SPH>::fft_inst;
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+arm_cfft_radix4_instance_q15 BeatExtractor<M, W, S, SPH>::ifft_inst;
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+arm_cfft_radix4_init_q15(&BeatExtractor<M, W, S, SPH>::fft_inst, 2*W, 0, 1);
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+arm_cfft_radix4_init_q15(&BeatExtractor<M, W, S, SPH>::ifft_inst, 2*W, 1, 1);
+*/
+
+
+//------------------------------------------------------------------------------
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+int BeatExtractor<M, W, S, SPH>::addSample (int16_t x) {
   // debug
   //std::cout << "BeatExtractor adding sample " << x << "\n";
   profiler.call(extractorAddSample);
@@ -102,68 +123,75 @@ int BeatExtractor<T, M, W, S, SPH>::addSample (T x) {
 }
 
 //------------------------------------------------------------------------------
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-void BeatExtractor<T, M, W, S, SPH>::calculateAutoCorrelation () {
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+void BeatExtractor<M, W, S, SPH>::calculateAutoCorrelation () {
     smoothedHFC.copySamples(workingMemory, W);
-    Complex<T>::zero(&workingMemory[W], W);
-    fft(workingMemory, 2*W, false);
-    memcpy(workingMemory2, workingMemory, 2*W*sizeof(Complex<T>));
+    Complex<int16_t>::zero(&workingMemory[W], W);
+    arm_cfft_radix4_q15(&fft_inst, reinterpret_cast<int16_t*>(workingMemory));
+    //fft(workingMemory, 2*W, false);
+    memcpy(workingMemory2, workingMemory, 2*W*sizeof(Complex<int16_t>));
     // Could apply low-pass filter here
     powerSpectrum(workingMemory2, 2*W);
-    fft(workingMemory2, 2*W, true);
-    T maxcorrelation = workingMemory2[0].re();
+    arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory));
+    //fft(workingMemory2, 2*W, true);
+    int16_t maxcorrelation = workingMemory2[0].re();
     // normalize
-    for (unsigned i=0; i<2*W; ++i) {
-      workingMemory2[i].re() /= maxcorrelation * 2*W/(2*W - i);
+    for (int16_t i=0; i<static_cast<int16_t>(2*W); ++i) {
+      //workingMemory2[i].re() /= maxcorrelation * 2*W/(2*W - i);
+      workingMemory2[i].re() *= 2*W/(2*W - i);
     }
 }
 
 //------------------------------------------------------------------------------
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-unsigned BeatExtractor<T, M, W, S, SPH>::findFrequency () {
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+unsigned BeatExtractor<M, W, S, SPH>::findFrequency () {
   unsigned twoi;
+  // Pass autocorrelation function through a comb filter.
+  // overflow possibility - could fix by using in place 32 bit copy (correctly combine real and complex parts first)
   // No need to let i reach 1, as this represents a tempo so fast
   // that it's beyond the Nyquist frequency of our HFC samplerate.
   for (unsigned i=W/2-1; i>1; --i) {
     twoi = i<<1;
-    workingMemory2[i].re() += workingMemory2[i<<1].re();
+    workingMemory2[i].re() += workingMemory2[twoi].re();
     for (unsigned j=twoi+i; j<W; j+=twoi) {
       workingMemory2[i].re() += workingMemory2[j].re();
     }
   }
 
   // normalize and find global maximum
+  // overflow possibility - would be mitigated by 32 bit idea mentioned above
   workingMemory2[2].re() *= 2;
-  unsigned hfcsPerBeat = 2;
-  T maxvalue = workingMemory2[2].re();
-  for (unsigned i=3; i<W; ++i) {
-    workingMemory2[i].re() *= T(i);
+  int16_t hfcsPerBeat = 2; // will end up equal to the largest normalized value in workingMemory2
+  int16_t maxvalue = workingMemory2[2].re();
+  for (int16_t i=3; i<W; ++i) {
+    workingMemory2[i].re() *= i;
     if (workingMemory2[i].re() > maxvalue) {
       maxvalue = workingMemory2[i].re();
       hfcsPerBeat = i;
     }
   }
 
-  // find the largest multiple of this maximum that's still in our window
-  unsigned searchWindow = W;
-  unsigned beatsPerWindow;
-  unsigned lastPeak;
-  unsigned newPeakIndex;
-  T subsampleHfcsPerBeat = T(hfcsPerBeat);
+  // Find the largest multiple of this maximum that's still in our window.
+  int16_t peakthreshold = workingMemory2[0].re() / 2; // half of perfect correlation
+  unsigned searchWindow = W; // unsigned so that we can divide by shifting
+  int16_t beatsPerWindow; // largest integer such that beatsPerWindow*hfcsPerBeat is in the window
+  int16_t lastPeak;       // largest multiple in the window (== beatsPerWindow*hfcsPerBeat)
+  int16_t newPeakIndex;
+  float subsampleHfcsPerBeat = static_cast<float>(hfcsPerBeat);
   while (true) {
-    beatsPerWindow = searchWindow / hfcsPerBeat;
+    beatsPerWindow = static_cast<int16_t>(searchWindow) / hfcsPerBeat;
     lastPeak = hfcsPerBeat * beatsPerWindow;
     newPeakIndex = lastPeak-5;
-    T newPeak = workingMemory2[newPeakIndex].re();
-    for (int i=newPeakIndex-4; i<lastPeak+5; ++i) {
+    int16_t newPeak = workingMemory2[newPeakIndex].re();
+    for (int16_t i=newPeakIndex-4; i<lastPeak+5; ++i) {
       if (workingMemory2[i].re() > newPeak) {
         newPeak = workingMemory2[i].re();
         newPeakIndex = i;
       }
     }
-    if (newPeak > T(0.5)) {
+    if (newPeak > peakthreshold) {
       //std::cout << "Located peak at " << newPeakIndex << " (" << beatsPerWindow << " beats out)" << '\n';
-      subsampleHfcsPerBeat = T(newPeakIndex) / T(beatsPerWindow);
+      subsampleHfcsPerBeat = static_cast<float>(newPeakIndex) / static_cast<float>(beatsPerWindow);
       break;
     } else {
       searchWindow >>= 1;
@@ -174,44 +202,46 @@ unsigned BeatExtractor<T, M, W, S, SPH>::findFrequency () {
   }
 
   // At 44100kHz, 64-32 HFC samples per beat corresponds to 86.1 to 172.2 bpm
-  while (subsampleHfcsPerBeat > 50) { subsampleHfcsPerBeat *= T(0.5); }
-  while (subsampleHfcsPerBeat <= 25) { subsampleHfcsPerBeat *= T(2); }
+  while (subsampleHfcsPerBeat > 50.0) { subsampleHfcsPerBeat *= 0.5; }
+  while (subsampleHfcsPerBeat <= 25.0) { subsampleHfcsPerBeat *= 2.0; }
   hfcsPerBeat = static_cast<unsigned>(subsampleHfcsPerBeat + 0.5);
   // record the final value (in audio samples)
-  beat.samplesPerBeat = static_cast<unsigned>(static_cast<T>(SPH)*subsampleHfcsPerBeat + 0.5);
+  beat.samplesPerBeat = static_cast<unsigned>(static_cast<float>(SPH)*subsampleHfcsPerBeat + 0.5);
   // return the final value (in HFC samples)
   return hfcsPerBeat;
 }
 
 //------------------------------------------------------------------------------
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-void BeatExtractor<T, M, W, S, SPH>::calculateCrossCorrelation (unsigned hfcsPerBeat) {
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+void BeatExtractor<M, W, S, SPH>::calculateCrossCorrelation (unsigned hfcsPerBeat) {
   // Prepare impulse train in workingMemory2.
   // In order to lock phase as little back in time as possible,
   // our impulse train hypothesizes a beat at the last HFC sample.
   // We will use a reverse time cross correlation to find how far
   // back this train needs to be pushed to really match up.
-  Complex<T>::zero(workingMemory2, 2*W);
+  Complex<int16_t>::zero(workingMemory2, 2*W);
   for (unsigned i=W-1; i<W; i-=hfcsPerBeat) {
-    workingMemory2[i].re() = T(1.0);
+    workingMemory2[i].re() = 1;
     //workingMemory2[i+1].re() = T(0.5);
   }
   // calculate the fft of the impulse train
-  fft(workingMemory2, 2*W, false);
+  arm_cfft_radix4_q15(&fft_inst, reinterpret_cast<int16_t*>(workingMemory));
+  //fft(workingMemory2, 2*W, false);
   // multiply the conjugate of FFT(HFC) into FFT(impulse train)
   for (unsigned i=0; i<2*W; ++i) {
     workingMemory2[i] *= workingMemory[i].conjugate();
   }
   // calculate the inverse FFT to get the cross correlation
-  fft(workingMemory2, 2*W, true);
+  arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory));
+  //fft(workingMemory2, 2*W, true);
 }
 
 //------------------------------------------------------------------------------
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-void BeatExtractor<T, M, W, S, SPH>::findPhase (unsigned hfcsPerBeat) {
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+void BeatExtractor<M, W, S, SPH>::findPhase (unsigned hfcsPerBeat) {
   // Find the maximum cross correlation in one beat period
-  T maxindex = 0;
-  T maxvalue = workingMemory2[0].re();
+  unsigned maxindex = 0;
+  int16_t maxvalue = workingMemory2[0].re();
   for (unsigned i=1; i<hfcsPerBeat; ++i) {
     if (workingMemory2[i].re() > maxvalue) {
       maxvalue = workingMemory2[i].re();
@@ -225,8 +255,8 @@ void BeatExtractor<T, M, W, S, SPH>::findPhase (unsigned hfcsPerBeat) {
 
 //------------------------------------------------------------------------------
 /*
-template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
-void BeatExtractor<T, M, W, S, SPH>::saveWorkingMemory (char const* name, bool bank2) const {
+template <unsigned M, unsigned W, unsigned S, unsigned SPH>
+void BeatExtractor<M, W, S, SPH>::saveWorkingMemory (char const* name, bool bank2) const {
   std::ofstream outfile(name);
   Complex<T> const* bank = bank2 ? workingMemory2 : workingMemory;
   for (unsigned i=0; i<2*W; ++i) {

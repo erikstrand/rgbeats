@@ -62,7 +62,7 @@ public:
 		return false;
 	}
 	virtual void update(void);
-	uint16_t output[1024] __attribute__ ((aligned (4)));
+	uint16_t output[512] __attribute__ ((aligned (4)));
 private:
 	void init(void);
 	const int16_t *window;

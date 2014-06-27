@@ -1,4 +1,4 @@
-commit: ?
+commit: 4248273
 runtime: 101761 millis
 analyze fft: 14689 millis, 35215 calls, 0.42 millis per call
 other fft: 6330 millis, 128 calls, 49.45 millis per call
@@ -12,4 +12,22 @@ color change: 59416 millis, 8191 calls, 7.25 millis per call
 printing: 78 millis, 31 calls, 2.52 millis per call
 light syncing: 5 millis, 8191 calls, 0.00 millis per call
 60% lights, 15% raw fft, 7% beat tracking, 1% hfc calculation
+
+
+commit: ?
+runtime: 101049 millis
+analyze fft: 13193 millis, 34970 calls, 0.38 millis per call
+other fft: 0 millis, 0 calls, 0.00 millis per call
+hfccalculation: 561 millis, 8704 calls, 0.06 millis per call
+buffer add sample: 29 millis, 8704 calls, 0.00 millis per call
+extractor add sample: 229 millis, 8704 calls, 0.03 millis per call
+extractor frequency: 103 millis, 34 calls, 3.03 millis per call
+extractor phase: 87 millis, 34 calls, 2.56 millis per call
+tracker add hypothesis: 0 millis, 34 calls, 0.00 millis per call
+color change: 63152 millis, 8703 calls, 7.26 millis per call
+printing: 66 millis, 33 calls, 2.00 millis per call
+light syncing: 5 millis, 8703 calls, 0.00 millis per call
+63% lights, 13% raw fft, 0.2% beat tracking, 0.6% hfc calculation
+
+
 

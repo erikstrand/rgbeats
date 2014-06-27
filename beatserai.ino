@@ -1,6 +1,7 @@
 #include <Audio.h>
 #include <Wire.h>
 #include <SD.h>
+#include "arm_math.h"
 
 #include "RingBuffer.h"
 #include "esOctoWS2811.h"
@@ -79,7 +80,7 @@ void colorChange(int color) {
 //RingBufferWithMedian<int, 64> hfcBuffer;
 const unsigned samplesPerHFC = 512;
 const unsigned HFCPerBeatHypothesis = 256;
-BeatExtractor<float, 16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
+BeatExtractor<16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
 BeatTracker<512, samplesPerHFC, HFCPerBeatHypothesis> tracker;
 unsigned currentBeat = 0;
 unsigned triggerSample = 0;
@@ -120,7 +121,7 @@ void loop() {
     // Calculate HFC
     profiler.call(hfccalculation);
     unsigned hfc = 0;
-    for (unsigned i=1; i<1024; ++i) {
+    for (unsigned i=1; i<512; ++i) {
       hfc += i*myFFT.output[i];
       if (hfc > 0x80000000) {
          Serial.print("overflow may occur!");
