@@ -13,6 +13,10 @@
 #include "RingBuffer.h"
 //#include <fstream>
 
+#include "esProfiler.h"
+extern Profiler profiler;
+
+
 
 //==============================================================================
 // BeatExtractor
@@ -72,17 +76,28 @@ template <typename T, unsigned M, unsigned W, unsigned S, unsigned SPH>
 int BeatExtractor<T, M, W, S, SPH>::addSample (T x) {
   // debug
   //std::cout << "BeatExtractor adding sample " << x << "\n";
+  profiler.call(extractorAddSample);
+
   rawHFC.addSample(x);
   smoothedHFC.addSample(x - rawHFC.median());
   if (isMultipleOf<S>(smoothedHFC.counter)) {
     // TODO: would be more efficient if this function took sampleNumber as an argument
     beat.measurementSample = SPH*smoothedHFC.counter;
+
+    profiler.call(extractorFrequency);
     calculateAutoCorrelation();
     unsigned hfcsPerBeat = findFrequency();
+    profiler.finish(extractorFrequency);
+
+    profiler.call(extractorPhase);
     calculateCrossCorrelation(hfcsPerBeat);
     findPhase(hfcsPerBeat);
+    profiler.finish(extractorPhase);
+    profiler.finish(extractorAddSample);
     return 1;
   }
+
+  profiler.finish(extractorAddSample);
   return 0;
 }
 

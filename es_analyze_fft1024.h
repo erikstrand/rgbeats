@@ -29,6 +29,9 @@
 
 #include "AudioStream.h"
 
+#include "esProfiler.h"
+extern Profiler profiler;
+
 // windows.c
 extern "C" {
 extern const int16_t AudioWindowHanning1024[];

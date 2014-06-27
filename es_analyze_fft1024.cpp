@@ -67,6 +67,8 @@ static void apply_window_to_fft_buffer(void *buffer, const void *window)
 
 void EsAudioAnalyzeFFT1024::update(void)
 {
+   profiler.call(analyzefft);
+
    sampleNumber += 128;
 	audio_block_t *block;
 
@@ -134,6 +136,9 @@ void EsAudioAnalyzeFFT1024::update(void)
 		state = 4;
 		break;
 	}
+
+   profiler.finish(analyzefft);
+
 /*
 	copy_to_fft_buffer(buffer, prevblock->data);
 	copy_to_fft_buffer(buffer+256, block->data);

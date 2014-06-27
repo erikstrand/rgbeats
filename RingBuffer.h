@@ -9,6 +9,9 @@
 #include "Complex.h"
 #include "Utils.h"
 
+#include "esProfiler.h"
+extern Profiler profiler;
+
 
 //==============================================================================
 // Ring Buffers
@@ -83,6 +86,7 @@ public:
 
 template <typename T, unsigned N>
 void RingBufferWithMedian<T, N>::addSample (T x) {
+  profiler.call(bufferAddSample);
   T target = rbuffer.oldestSample();
   sum = sum - target + x;
   sumsquare = sumsquare - target*target + x*x;
@@ -99,6 +103,7 @@ void RingBufferWithMedian<T, N>::addSample (T x) {
   }
   sbuffer[i] = x;
   rbuffer.addSample(x);
+  profiler.finish(bufferAddSample);
 }
 
 #endif // BEATSERAI_RINGBUFFER

@@ -7,6 +7,13 @@
 #include "es_analyze_fft1024.h"
 #include "BeatExtractor.h"
 #include "BeatTracker.h"
+#include "esProfiler.h"
+
+
+//------------------------------------------------------------------------------
+// Profiler
+Profiler profiler;
+
 
 //------------------------------------------------------------------------------
 // Audio constants
@@ -59,10 +66,12 @@ int colors[] = {RED, RED2, ORANGE, ORANGE2, GREEN, GREEN2, BLUE, BLUE2, PINK, PI
 
 
 void colorChange(int color) {
+  profiler.call(colorchange);
   for (int i=0; i<leds.numPixels(); ++i) {
     leds.setPixel(i, color);
   }
   leds.show();
+  profiler.finish(colorchange);
 }
 
 
@@ -89,6 +98,8 @@ void setup() {
 
   leds.begin();
   leds.show();
+
+  profiler.resetStartTime();
 }
 
 //------------------------------------------------------------------------------
@@ -107,6 +118,7 @@ void loop() {
     */
     
     // Calculate HFC
+    profiler.call(hfccalculation);
     unsigned hfc = 0;
     for (unsigned i=1; i<1024; ++i) {
       hfc += i*myFFT.output[i];
@@ -114,10 +126,12 @@ void loop() {
          Serial.print("overflow may occur!");
       }
     }
+    profiler.finish(hfccalculation);
 
     // Add HFC sample to the extractor
     if (extractor.addSample((float)hfc)) {
       tracker.addBeatHypothesis(extractor.beat);
+      profiler.call(printing);
       Serial.print("state: ");
       Serial.print(tracker.state);
       Serial.println();
@@ -127,8 +141,11 @@ void loop() {
       Serial.print("tempo: ");
       Serial.print(tracker.tempoGuess());
       Serial.println();
+      profiler.printStats();
+      profiler.finish(printing);
     }
 
+    profiler.call(lightsync);
     if (tracker.state < 2) {
       if (tracker.firstFinal + tracker.nPredictions < currentBeat) {
         // beat chain was broken; find the next beat in the new chain
@@ -155,6 +172,7 @@ void loop() {
         }
       }
     }
+    profiler.finish(lightsync);
 
     if (extractor.rawHFC.newestSample() > extractor.rawHFC.median() + (extractor.rawHFC.stddeviation() * 0.5)) {
       colorChange(colors[color+1]);
