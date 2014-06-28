@@ -14,7 +14,7 @@ light syncing: 5 millis, 8191 calls, 0.00 millis per call
 60% lights, 15% raw fft, 7% beat tracking, 1% hfc calculation
 
 
-commit: ?
+commit: cc6ad53
 runtime: 101049 millis
 analyze fft: 13193 millis, 34970 calls, 0.38 millis per call
 other fft: 0 millis, 0 calls, 0.00 millis per call

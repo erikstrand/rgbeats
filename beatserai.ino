@@ -79,7 +79,7 @@ void colorChange(int color) {
 //------------------------------------------------------------------------------
 //RingBufferWithMedian<int, 64> hfcBuffer;
 const unsigned samplesPerHFC = 512;
-const unsigned HFCPerBeatHypothesis = 256;
+const unsigned HFCPerBeatHypothesis = 128;
 BeatExtractor<16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
 BeatTracker<512, samplesPerHFC, HFCPerBeatHypothesis> tracker;
 unsigned currentBeat = 0;
@@ -130,7 +130,7 @@ void loop() {
     profiler.finish(hfccalculation);
 
     // Add HFC sample to the extractor
-    if (extractor.addSample((float)hfc)) {
+    if (extractor.addSample(hfc)) {
       tracker.addBeatHypothesis(extractor.beat);
       profiler.call(printing);
       Serial.print("state: ");
@@ -143,6 +143,9 @@ void loop() {
       Serial.print(tracker.tempoGuess());
       Serial.println();
       profiler.printStats();
+      Serial.print("dropped samples: ");
+      Serial.print(static_cast<int>(myFFT.sampleNumber / samplesPerHFC) - static_cast<int>(BeatExtractor.smoothedHFC.counter));
+      Serial.println();
       profiler.finish(printing);
     }
 
