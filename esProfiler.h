@@ -10,6 +10,7 @@
 //------------------------------------------------------------------------------
 enum ProfilerFunction {
   analyzefft,
+  analyzeother,
   otherfft,
   hfccalculation,
   bufferAddSample,
@@ -24,6 +25,7 @@ enum ProfilerFunction {
 
 char const* const FunctionNames[] = {
   "analyze fft",
+  "analyze other",
   "other fft",
   "hfccalculation",
   "buffer add sample",
@@ -35,7 +37,7 @@ char const* const FunctionNames[] = {
   "printing",
   "light syncing"
   };
-const int pfunctions = 11;
+const int pfunctions = 12;
 
 //------------------------------------------------------------------------------
 class Profiler {
@@ -62,13 +64,17 @@ public:
     Serial.println();
     for (int i=0; i<pfunctions; ++i) {
       Serial.print(FunctionNames[i]);
-      Serial.print(": ");
-      Serial.print(counts[i][0]);
-      Serial.print(" millis, ");
-      Serial.print(counts[i][1]);
-      Serial.print(" calls, ");
-      Serial.print(counts[i][0]/((float)counts[i][1]));
-      Serial.print(" millis per call");
+      if (counts[i][1] > 0) {
+        Serial.print(": ");
+        Serial.print(counts[i][0]);
+        Serial.print(" millis, ");
+        Serial.print(counts[i][1]);
+        Serial.print(" calls, ");
+        Serial.print(counts[i][0]/((float)counts[i][1]));
+        Serial.print(" millis per call");
+      } else {
+        Serial.print("0 calls");
+      }
       Serial.println();
     }
   }

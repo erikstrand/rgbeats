@@ -5,7 +5,7 @@
 
 #include "RingBuffer.h"
 #include "esOctoWS2811.h"
-#include "es_analyze_fft1024.h"
+#include "AudioAnalyzeHfcOnset.h"
 #include "BeatExtractor.h"
 #include "BeatTracker.h"
 #include "esProfiler.h"
@@ -25,13 +25,13 @@ const int myInput = AUDIO_INPUT_LINEIN;
 // order data flows, inputs/sources -> processing -> outputs
 //
 AudioInputI2S       audioInput;         // audio shield: mic or line-in
-EsAudioAnalyzeFFT1024  myFFT(20);
+AudioAnalyzeHfcOnset  myHFC(20);
 AudioOutputI2S      audioOutput;        // audio shield: headphones & line-out
 
 // Create Audio connections between the components
 //
 AudioConnection c1(audioInput, 0, audioOutput, 0);
-AudioConnection c2(audioInput, 0, myFFT, 0);
+AudioConnection c2(audioInput, 0, myHFC, 0);
 AudioConnection c3(audioInput, 1, audioOutput, 1);
 
 // Create an object to control the audio shield.
@@ -47,8 +47,8 @@ int drawingMemory[ledsPerStrip*6];
 const int config = WS2811_GRB | WS2811_800kHz;
 OctoWS2811 leds(ledsPerStrip, displayMemory, drawingMemory, config);
 
-#define RED    0x040000
-#define RED2   0x080000
+#define RED    0x030000
+#define RED2   0x0B0000
 #define GREEN  0x000400
 #define GREEN2 0x000800
 #define BLUE   0x000004
@@ -80,10 +80,11 @@ void colorChange(int color) {
 //RingBufferWithMedian<int, 64> hfcBuffer;
 const unsigned samplesPerHFC = 512;
 const unsigned HFCPerBeatHypothesis = 128;
-BeatExtractor<16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
-BeatTracker<512, samplesPerHFC, HFCPerBeatHypothesis> tracker;
-unsigned currentBeat = 0;
-unsigned triggerSample = 0;
+//BeatExtractor<16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
+//BeatTracker<512, samplesPerHFC, HFCPerBeatHypothesis> tracker;
+//unsigned currentBeat = 0;
+//unsigned triggerSample = 0;
+Complex<int16_t> testbuffer[512];
 
 
 //------------------------------------------------------------------------------
@@ -101,35 +102,34 @@ void setup() {
   leds.show();
 
   profiler.resetStartTime();
+  Serial.print("Starting system...");
+  Serial.println();
 }
 
 //------------------------------------------------------------------------------
 void loop() {
 
-  if (myFFT.available()) {
+  if (myHFC.available()) {
     // each time new FFT data is available
     // print it all to the Arduino Serial Monitor
-    /*
-    Serial.print("FFT: ");
-    for (int i=0; i<1024; i++) {
-      Serial.print(myFFT.output[i]);
-      Serial.print(",");
+    myHFC.smoothedHFC.copySamples(testbuffer, 512, myHFC.hfcWindowEnd);
+    Serial.print("buffer: ");
+    for (int i=0; i<32; i++) {
+      Serial.print(", ");
+      Serial.print(myHFC.rawHFC.rbuffer.buffer[i]);
     }
     Serial.println();
-    */
-    
-    // Calculate HFC
-    profiler.call(hfccalculation);
-    unsigned hfc = 0;
-    for (unsigned i=1; i<512; ++i) {
-      hfc += i*myFFT.output[i];
-      if (hfc > 0x80000000) {
-         Serial.print("overflow may occur!");
-      }
+    Serial.print("HFC: ");
+    Serial.print(testbuffer[0].re());
+    for (int i=1; i<512; i++) {
+      Serial.print(", ");
+      Serial.print(testbuffer[i].re());
     }
-    profiler.finish(hfccalculation);
-
+    Serial.println();
+    //profiler.printStats();
+    
     // Add HFC sample to the extractor
+    /*
     if (extractor.addSample(hfc)) {
       tracker.addBeatHypothesis(extractor.beat);
       profiler.call(printing);
@@ -143,8 +143,12 @@ void loop() {
       Serial.print(tracker.tempoGuess());
       Serial.println();
       profiler.printStats();
-      Serial.print("dropped samples: ");
-      Serial.print(static_cast<int>(myFFT.sampleNumber / samplesPerHFC) - static_cast<int>(BeatExtractor.smoothedHFC.counter));
+      Serial.print("audio sample: ");
+      Serial.print(myHFC.sampleNumber);
+      Serial.print(", HFC sample: ");
+      Serial.print(extractor.smoothedHFC.counter);
+      Serial.print(", dropped samples: ");
+      Serial.print(static_cast<int>(myHFC.sampleNumber / samplesPerHFC) - static_cast<int>(extractor.smoothedHFC.counter));
       Serial.println();
       profiler.finish(printing);
     }
@@ -156,20 +160,20 @@ void loop() {
         currentBeat = tracker.firstFinal;
         triggerSample = tracker.beatLocation(currentBeat);
         unsigned i=0;
-        while (i < tracker.nPredictions and triggerSample <= myFFT.sampleNumber) {
+        while (i < tracker.nPredictions and triggerSample <= myHFC.sampleNumber) {
           ++currentBeat;
           triggerSample = tracker.beatLocation(currentBeat);
           ++i;
         }
       } else {
-        if (myFFT.sampleNumber >= triggerSample) {
+        if (myHFC.sampleNumber >= triggerSample) {
           color += 2;
           if (color >= 8) {
             color = 0;
           }
           ++currentBeat;
           triggerSample = tracker.beatLocation(currentBeat);
-          while (currentBeat < tracker.firstFinal + tracker.nPredictions and triggerSample <= myFFT.sampleNumber) {
+          while (currentBeat < tracker.firstFinal + tracker.nPredictions and triggerSample <= myHFC.sampleNumber) {
             ++currentBeat;
             triggerSample = tracker.beatLocation(currentBeat);
           }
@@ -177,16 +181,17 @@ void loop() {
       }
     }
     profiler.finish(lightsync);
+    */
 
-    if (extractor.rawHFC.newestSample() > extractor.rawHFC.median() + (extractor.rawHFC.stddeviation() * 0.5)) {
-      colorChange(colors[color+1]);
-    } else {
-      colorChange(colors[color]);
-    }
     //Serial.print(hfc);
     //Serial.println();
   }
 
+  if (myHFC.samplesSinceLastOnset < 5) {
+    colorChange(colors[color+1]);
+  } else {
+    colorChange(colors[color]);
+  }
 
   //int microsec = 2000000 / leds.numPixels();  // change them all in 2 seconds
 
