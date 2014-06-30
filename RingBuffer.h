@@ -93,7 +93,6 @@ public:
 
 template <typename T, unsigned N>
 unsigned RingBufferWithMedian<T, N>::addSample (T x) {
-  profiler.call(bufferAddSample);
   T target = rbuffer.oldestSample();
   sum = sum - target + x;
   //sumsquare = sumsquare - target*target + x*x;
@@ -109,7 +108,6 @@ unsigned RingBufferWithMedian<T, N>::addSample (T x) {
     while (i-1 < N-1 and sbuffer[i-1] > x) { sbuffer[i] = sbuffer[i-1]; --i; }
   }
   sbuffer[i] = x;
-  profiler.finish(bufferAddSample);
   return rbuffer.addSample(x);
 }
 

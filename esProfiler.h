@@ -20,7 +20,8 @@ enum ProfilerFunction {
   trackerAddHypothesis,
   colorchange,
   printing,
-  lightsync
+  lightsync,
+  onsetDetection
   }; 
 
 char const* const FunctionNames[] = {
@@ -35,9 +36,10 @@ char const* const FunctionNames[] = {
   "tracker add hypothesis",
   "color change",
   "printing",
-  "light syncing"
+  "light syncing",
+  "onset detection"
   };
-const int pfunctions = 12;
+const int pfunctions = 13;
 
 //------------------------------------------------------------------------------
 class Profiler {
@@ -73,7 +75,7 @@ public:
         Serial.print(counts[i][0]/((float)counts[i][1]));
         Serial.print(" millis per call");
       } else {
-        Serial.print("0 calls");
+        Serial.print(": 0 calls");
       }
       Serial.println();
     }

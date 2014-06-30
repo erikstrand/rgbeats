@@ -78,13 +78,14 @@ void colorChange(int color) {
 
 //------------------------------------------------------------------------------
 //RingBufferWithMedian<int, 64> hfcBuffer;
+const unsigned hfcWindow = 512;
 const unsigned samplesPerHFC = 512;
 const unsigned HFCPerBeatHypothesis = 128;
-//BeatExtractor<16, 512, HFCPerBeatHypothesis, samplesPerHFC> extractor;
-//BeatTracker<512, samplesPerHFC, HFCPerBeatHypothesis> tracker;
-//unsigned currentBeat = 0;
-//unsigned triggerSample = 0;
-Complex<int16_t> testbuffer[512];
+BeatExtractor<hfcWindow, samplesPerHFC> extractor;
+BeatTracker<hfcWindow, samplesPerHFC, HFCPerBeatHypothesis> tracker;
+unsigned currentBeat = 0;
+unsigned triggerSample = 0;
+//Complex<int16_t> testbuffer[512];
 
 
 //------------------------------------------------------------------------------
@@ -110,48 +111,41 @@ void setup() {
 void loop() {
 
   if (myHFC.available()) {
-    // each time new FFT data is available
-    // print it all to the Arduino Serial Monitor
-    myHFC.smoothedHFC.copySamples(testbuffer, 512, myHFC.hfcWindowEnd);
-    Serial.print("buffer: ");
-    for (int i=0; i<32; i++) {
-      Serial.print(", ");
-      Serial.print(myHFC.rawHFC.rbuffer.buffer[i]);
-    }
-    Serial.println();
-    Serial.print("HFC: ");
-    Serial.print(testbuffer[0].re());
-    for (int i=1; i<512; i++) {
-      Serial.print(", ");
-      Serial.print(testbuffer[i].re());
-    }
-    Serial.println();
-    //profiler.printStats();
+    unsigned windowEnd = myHFC.hfcWindowEnd;
+    unsigned windowEndSample = myHFC.hfcWindowEndSample;
+
+    // Copy HFC samples to the extractor
+    profiler.call(extractorAddSample);
+    myHFC.smoothedHFC.copySamples(extractor.workingMemory, samplesPerHFC, windowEnd);
+    extractor.extractBeat(windowEndSample);
+    profiler.finish(extractorAddSample);
     
-    // Add HFC sample to the extractor
-    /*
-    if (extractor.addSample(hfc)) {
-      tracker.addBeatHypothesis(extractor.beat);
-      profiler.call(printing);
-      Serial.print("state: ");
-      Serial.print(tracker.state);
-      Serial.println();
-      Serial.print("samples per beat: ");
-      Serial.print(tracker.currentHypothesis.samplesPerBeat);
-      Serial.println();
-      Serial.print("tempo: ");
-      Serial.print(tracker.tempoGuess());
-      Serial.println();
-      profiler.printStats();
-      Serial.print("audio sample: ");
-      Serial.print(myHFC.sampleNumber);
-      Serial.print(", HFC sample: ");
-      Serial.print(extractor.smoothedHFC.counter);
-      Serial.print(", dropped samples: ");
-      Serial.print(static_cast<int>(myHFC.sampleNumber / samplesPerHFC) - static_cast<int>(extractor.smoothedHFC.counter));
-      Serial.println();
-      profiler.finish(printing);
-    }
+    // Add beats to the tracker
+    profiler.call(trackerAddHypothesis);
+    tracker.addBeatHypothesis(extractor.beat);
+    profiler.finish(trackerAddHypothesis);
+
+    // Print stuff
+    profiler.call(printing);
+    Serial.print("state: ");
+    Serial.print(tracker.state);
+    Serial.println();
+    Serial.print("samples per beat: ");
+    Serial.print(tracker.currentHypothesis.samplesPerBeat);
+    Serial.println();
+    Serial.print("tempo: ");
+    Serial.print(tracker.tempoGuess());
+    Serial.println();
+    profiler.printStats();
+    Serial.print("audio sample: ");
+    Serial.print(windowEndSample);
+    Serial.print(", HFC sample: ");
+    Serial.print(windowEnd);
+    Serial.print(", dropped samples: ");
+    Serial.print(static_cast<int>(windowEndSample / samplesPerHFC) - static_cast<int>(windowEnd));
+    Serial.println();
+    profiler.finish(printing);
+
 
     profiler.call(lightsync);
     if (tracker.state < 2) {
@@ -181,7 +175,6 @@ void loop() {
       }
     }
     profiler.finish(lightsync);
-    */
 
     //Serial.print(hfc);
     //Serial.println();

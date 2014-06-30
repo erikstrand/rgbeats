@@ -55,7 +55,6 @@ private:
   int16_t buffer[2048] __attribute__ ((aligned (4))); // working memory for fft calculation
   uint8_t state; // controls which blocklist pointer will be used next
   volatile bool outputflag;
-  volatile unsigned sampleNumber;
   audio_block_t* inputQueueArray[1]; // only one audio input channel
   const unsigned refractorySamples = 15;
 
@@ -64,8 +63,10 @@ public:
   RingBufferWithMedian<int32_t, 32> rawHFC;
   // HFC with trailing median subtracted. We store 2 times the Beat Extraction window.
   RingBuffer<int16_t, 1024> smoothedHFC;
+  volatile unsigned sampleNumber;
   uint16_t output[512] __attribute__ ((aligned (4)));
   unsigned hfcWindowEnd;
+  unsigned hfcWindowEndSample;
   volatile unsigned samplesSinceLastOnset;
 
 public:

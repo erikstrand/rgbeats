@@ -70,8 +70,6 @@ public:
 template <unsigned SPH, unsigned HPB, unsigned M>
 void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
 
-  profiler.call(trackerAddHypothesis);
-
   //std::cout << "Current state: " << state << '\n';
   if (state == Unaligned) {
     // should go through ProvisionallyAligned state
@@ -81,7 +79,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
     currentHypothesis = bh;
     anchorBeatNumber = 0;
     predictBeats(false);
-    profiler.finish(trackerAddHypothesis);
     return;
   }
 
@@ -93,7 +90,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
       currentHypothesis = bh;
       anchorBeatNumber += beatdiff;
       predictBeats(true);
-      profiler.finish(trackerAddHypothesis);
       return;
     } else {
       // hypotheses are inconsistent; we are now unsure
@@ -101,7 +97,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
       //std::cout << "Moving to state " << state << '\n';
       promotePreliminaryPredictions();
       alternateHypothesis = bh;
-      profiler.finish(trackerAddHypothesis);
       return;
     }
   }
@@ -115,7 +110,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
       currentHypothesis = bh;
       anchorBeatNumber += beatdiff;
       predictBeats(true);
-      profiler.finish(trackerAddHypothesis);
       return;
     }
     // See if our latest hypothesis holds
@@ -126,7 +120,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
       currentHypothesis = bh;
       anchorBeatNumber = beatdiff;
       predictBeats(true);
-      profiler.finish(trackerAddHypothesis);
       return;
     }
 
@@ -136,7 +129,6 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
     clearPredictions();
   }
 
-  profiler.finish(trackerAddHypothesis);
 }
 
 //------------------------------------------------------------------------------

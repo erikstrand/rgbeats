@@ -69,13 +69,14 @@ void AudioAnalyzeHfcOnset::update(void)
 {
   profiler.call(analyzeother);
 
-  // We may not finish the FFT and HFC calculation before the next buffer is added,
-  // so we store the correct value of sampleNumber for this iteration in a separate variable.
-  unsigned newSampleNumber = (sampleNumber += 128);
   audio_block_t *block;
 
   block = receiveReadOnly();
   if (!block) return;
+
+  // We may not finish the FFT and HFC calculation before the next buffer is added,
+  // so we store the correct value of sampleNumber for this iteration in a separate variable.
+  unsigned newSampleNumber = (sampleNumber += 128);
 
   switch (state) {
     case 0:
@@ -131,23 +132,32 @@ void AudioAnalyzeHfcOnset::update(void)
         uint32_t magsq = multiply_16tx16t_add_16bx16b(tmp, tmp);
         uint32_t mag = sqrt_uint32_approx(magsq);
         output[i] = static_cast<uint16_t>(mag);
-        hfc += i*static_cast<int32_t>(mag);
+        hfc += (512+i)*static_cast<int32_t>(mag);
       }
       profiler.finish(hfccalculation);
 
-      // Add HFC samples to buffers, and determine if we have an onset
+      // Add HFC samples to buffers
+      profiler.call(bufferAddSample);
       rawHFC.addSample(hfc);
+      profiler.finish(bufferAddSample);
+
+      // Determine if this HFC sample is an onset
+      profiler.call(onsetDetection);
       int32_t median = rawHFC.median();
       int32_t sdev = rawHFC.stddeviation();
       int32_t hfc2 = hfc - median;
-      if (samplesSinceLastOnset > refractorySamples and hfc2 - 3*sdev > 0) {
+      if (samplesSinceLastOnset > refractorySamples and hfc2 - 2*sdev > 0) {
         samplesSinceLastOnset = 0;
       } else {
         samplesSinceLastOnset++;
       }
+      profiler.finish(onsetDetection);
+
+      // Prepare smoothed HFC sample
       // Need to downscale to fit HFC samples in int16's.
       // From some dubstep tests, this scale leads to rare saturation.
-      hfc2 /= 128;
+      //hfc2 /= 128;
+      hfc2 /= 65536;
       int16_t smallhfc2;
       if (hfc2 >= 0x8000) {
         Serial.println("Smoothed HFC saturation");
@@ -156,6 +166,10 @@ void AudioAnalyzeHfcOnset::update(void)
         smallhfc2 = static_cast<int16_t>(hfc2);
       }
       unsigned hfcNumber = smoothedHFC.addSample(static_cast<int16_t>(smallhfc2));
+
+      /*
+      Serial.print(newSampleNumber);
+      Serial.print(" / ");
       Serial.print(hfcNumber);
       Serial.print(": ");
       Serial.print(hfc);
@@ -168,6 +182,7 @@ void AudioAnalyzeHfcOnset::update(void)
       Serial.print(", since onset: ");
       Serial.print(samplesSinceLastOnset);
       Serial.println();
+      */
       /*
       Serial.print("Audio sample: ");
       Serial.print(newSampleNumber);
@@ -175,6 +190,8 @@ void AudioAnalyzeHfcOnset::update(void)
       Serial.print(hfcNumber);
       Serial.println();
       */
+
+      // Determine if it's time for another beat estimation
       if ((hfcNumber & 0x7F) == 0) {
         /*
         Serial.print("Audio sample: ");
@@ -184,6 +201,7 @@ void AudioAnalyzeHfcOnset::update(void)
         Serial.println();
         */
         hfcWindowEnd = hfcNumber;
+        hfcWindowEndSample = newSampleNumber;
         outputflag = true;
       }
 
