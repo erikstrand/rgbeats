@@ -6,8 +6,10 @@
 #ifndef BEATSERAI_PULSEEXTRACTOR
 #define BEATSERAI_PULSEEXTRACTOR
 
-#include <cmath>
+//#include <cmath>
 #include <arm_math.h>
+#include "utility/dspinst.h"
+#include "utility/sqrt_integer.h"
 #include "Complex.h"
 #include "FFT.h"
 #include "utils.h"
@@ -34,8 +36,8 @@ extern Profiler profiler;
 template <unsigned W, unsigned SPH>
 class BeatExtractor {
 public:
-  Complex<int16_t> workingMemory[2*W];  // Need twice the window size, so that we can pad with zeros
-  Complex<int16_t> workingMemory2[2*W]; // Need a second bank for cross correlation calculation
+  Complex<int16_t> workingMemory[2*W] __attribute__ ((aligned (4)));  // Need twice the window size, so that we can pad with zeros
+  Complex<int16_t> workingMemory2[2*W] __attribute__ ((aligned (4))); // Need a second bank for cross correlation calculation
   BeatHypothesis beat;                  // Most recent guess at the pulse.
   // should be static const...
   arm_cfft_radix4_instance_q15 fft_inst;
@@ -109,66 +111,104 @@ int BeatExtractor<W, SPH>::extractBeat (unsigned endSample) {
 //------------------------------------------------------------------------------
 template <unsigned W, unsigned SPH>
 void BeatExtractor<W, SPH>::calculateAutoCorrelation () {
-    //smoothedHFC.copySamples(workingMemory, W);
+    // Compute forward FFT
     Complex<int16_t>::zero(&workingMemory[W], W);
     arm_cfft_radix4_q15(&fft_inst, reinterpret_cast<int16_t*>(workingMemory));
     // copy data to our second buffer, so HFC transform can be used later
     memcpy(workingMemory2, workingMemory, 2*W*sizeof(Complex<int16_t>));
+
+    // Compute power spectrum
     // Could apply low-pass filter here
     powerSpectrum(workingMemory2, 2*W);
-    arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory));
-    //int16_t maxcorrelation = workingMemory2[0].re();
-    // normalize
-    for (int16_t i=0; i<static_cast<int16_t>(2*W); ++i) {
-      //workingMemory2[i].re() /= maxcorrelation * 2*W/(2*W - i);
-      workingMemory2[i].re() *= 2*W/(2*W - i);
+    //Serial.print("power spectrum: ");
+    for (int i=0; i < 2*W; ++i) {
+      uint32_t tmp = *reinterpret_cast<uint32_t *>(workingMemory2 + i); // real & imag
+      uint32_t magsq = multiply_16tx16t_add_16bx16b(tmp, tmp);
+      uint32_t mag = sqrt_uint32_approx(magsq);
+      workingMemory2[i].re() = static_cast<uint16_t>(mag);
+      //Serial.print(workingMemory2[i].re());
+      //Serial.print(", ");
+      workingMemory2[i].im() = 0;
     }
+    //Serial.println();
+
+    // Compute inverse FFT
+    arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory2));
+
+    // Normalize
+    //Serial.print("Autocorrelation: ");
+    //Serial.println();
+    for (int32_t i=0; i<static_cast<int32_t>(W/2); ++i) {
+      int32_t scaled = (int32_t)W/(W - i) * (int32_t)workingMemory2[i].re();
+      *reinterpret_cast<int32_t*>(workingMemory2 + i) = scaled;
+      //Serial.println(scaled);
+    }
+    for (int32_t i=W/2; i<static_cast<int32_t>(3*W/2); ++i) {
+      int32_t scaled = (int32_t)workingMemory2[i].re();
+      *reinterpret_cast<int32_t*>(workingMemory2 + i) = scaled;
+      //Serial.println(scaled);
+    }
+    for (int32_t i=3*W/2; i<static_cast<int32_t>(2*W); ++i) {
+      int32_t scaled = (int32_t)W/(i - W) * (int32_t)workingMemory2[i].re();
+      *reinterpret_cast<int32_t*>(workingMemory2 + i) = scaled;
+      //Serial.println(scaled);
+    }
+    //Serial.println();
 }
 
 //------------------------------------------------------------------------------
 template <unsigned W, unsigned SPH>
 unsigned BeatExtractor<W, SPH>::findFrequency () {
+  int32_t* workingMemory32 = reinterpret_cast<int32_t*>(workingMemory2);
   unsigned twoi;
+
   // Pass autocorrelation function through a comb filter.
   // overflow possibility - could fix by using in place 32 bit copy (correctly combine real and complex parts first)
   // No need to let i reach 1, as this represents a tempo so fast
   // that it's beyond the Nyquist frequency of our HFC samplerate.
   for (unsigned i=W/2-1; i>1; --i) {
     twoi = i<<1;
-    workingMemory2[i].re() += workingMemory2[twoi].re();
+    workingMemory32[i] += workingMemory32[twoi];
     for (unsigned j=twoi+i; j<W; j+=twoi) {
-      workingMemory2[i].re() += workingMemory2[j].re();
+      workingMemory32[i] += workingMemory32[j];
     }
   }
 
   // normalize and find global maximum
   // overflow possibility - would be mitigated by 32 bit idea mentioned above
-  workingMemory2[2].re() *= 2;
-  int16_t hfcsPerBeat = 2; // will end up equal to the largest normalized value in workingMemory2
-  int16_t maxvalue = workingMemory2[2].re();
-  for (unsigned i=3; i<W; ++i) {
-    workingMemory2[i].re() *= i;
-    if (workingMemory2[i].re() > maxvalue) {
-      maxvalue = workingMemory2[i].re();
-      hfcsPerBeat = static_cast<int16_t>(i);
+  //Serial.println("=========================================================================");
+  workingMemory32[2] *= 2;
+  //Serial.println(workingMemory32[2]);
+  int32_t hfcsPerBeat = 2; // will end up equal to the largest normalized value in workingMemory2
+  int32_t maxvalue = workingMemory32[2];
+  for (int32_t i=3; i<W; ++i) {
+    workingMemory32[i] *= W/((W + 1) / i);
+    //Serial.println(workingMemory32[i]);
+    if (workingMemory32[i] > maxvalue) {
+      maxvalue = workingMemory32[i];
+      hfcsPerBeat = i;
     }
   }
+  //Serial.println();
 
   // Find the largest multiple of this maximum that's still in our window.
-  int16_t peakthreshold = workingMemory2[0].re() / 2; // half of perfect correlation
-  unsigned searchWindow = W; // unsigned so that we can divide by shifting
-  int16_t beatsPerWindow; // largest integer such that beatsPerWindow*hfcsPerBeat is in the window
-  int16_t lastPeak;       // largest multiple in the window (== beatsPerWindow*hfcsPerBeat)
-  int16_t newPeakIndex;
+  int32_t peakthreshold = maxvalue / 2; // half of what we've already found
+  int32_t searchWindow = W;
+  int32_t beatsPerWindow; // largest integer such that beatsPerWindow*hfcsPerBeat is in the window
+  int32_t lastPeak;       // largest multiple in the window (== beatsPerWindow*hfcsPerBeat)
+  int32_t newPeakIndex;
   float subsampleHfcsPerBeat = static_cast<float>(hfcsPerBeat);
   while (true) {
-    beatsPerWindow = static_cast<int16_t>(searchWindow) / hfcsPerBeat;
+    beatsPerWindow = static_cast<int32_t>(searchWindow) / hfcsPerBeat;
+    if (beatsPerWindow <= 1) {
+      break;
+    }
     lastPeak = hfcsPerBeat * beatsPerWindow;
     newPeakIndex = lastPeak-5;
-    int16_t newPeak = workingMemory2[newPeakIndex].re();
-    for (int16_t i=newPeakIndex-4; i<lastPeak+5; ++i) {
-      if (workingMemory2[i].re() > newPeak) {
-        newPeak = workingMemory2[i].re();
+    int32_t newPeak = workingMemory32[newPeakIndex];
+    for (int32_t i=newPeakIndex-4; i<lastPeak+5; ++i) {
+      if (workingMemory32[i] > newPeak) {
+        newPeak = workingMemory32[i];
         newPeakIndex = i;
       }
     }
@@ -177,10 +217,7 @@ unsigned BeatExtractor<W, SPH>::findFrequency () {
       subsampleHfcsPerBeat = static_cast<float>(newPeakIndex) / static_cast<float>(beatsPerWindow);
       break;
     } else {
-      searchWindow >>= 1;
-      if (searchWindow <= (W>>2)) {
-        break;
-      }
+      searchWindow /= 2;
     }
   }
 
@@ -204,18 +241,21 @@ void BeatExtractor<W, SPH>::calculateCrossCorrelation (unsigned hfcsPerBeat) {
   // back this train needs to be pushed to really match up.
   Complex<int16_t>::zero(workingMemory2, 2*W);
   for (unsigned i=W-1; i<W; i-=hfcsPerBeat) {
-    workingMemory2[i].re() = 1;
+    workingMemory2[i].re() = 8192;
     //workingMemory2[i+1].re() = T(0.5);
   }
   // calculate the fft of the impulse train
-  arm_cfft_radix4_q15(&fft_inst, reinterpret_cast<int16_t*>(workingMemory));
+  arm_cfft_radix4_q15(&fft_inst, reinterpret_cast<int16_t*>(workingMemory2));
   //fft(workingMemory2, 2*W, false);
   // multiply the conjugate of FFT(HFC) into FFT(impulse train)
+  //Serial.println("FFT zone");
   for (unsigned i=0; i<2*W; ++i) {
     workingMemory2[i] *= workingMemory[i].conjugate();
+    //Serial.println(workingMemory2[i].re());
   }
+  //Serial.println();
   // calculate the inverse FFT to get the cross correlation
-  arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory));
+  arm_cfft_radix4_q15(&ifft_inst, reinterpret_cast<int16_t*>(workingMemory2));
   //fft(workingMemory2, 2*W, true);
 }
 
@@ -225,12 +265,16 @@ void BeatExtractor<W, SPH>::findPhase (unsigned hfcsPerBeat) {
   // Find the maximum cross correlation in one beat period
   unsigned maxindex = 0;
   int16_t maxvalue = workingMemory2[0].re();
+  //Serial.println("=========================================================================");
+  //Serial.println("cross correlation");
   for (unsigned i=1; i<hfcsPerBeat; ++i) {
+    //Serial.println(workingMemory2[i].re());
     if (workingMemory2[i].re() > maxvalue) {
       maxvalue = workingMemory2[i].re();
       maxindex = i;
     }
   }
+  //Serial.println();
 
   // store the location of the last beat (in HFC samples)
   beat.anchorSample = SPH*(beat.measurementSample - 1 - maxindex);

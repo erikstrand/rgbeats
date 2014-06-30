@@ -157,7 +157,7 @@ void AudioAnalyzeHfcOnset::update(void)
       // Need to downscale to fit HFC samples in int16's.
       // From some dubstep tests, this scale leads to rare saturation.
       //hfc2 /= 128;
-      hfc2 /= 65536;
+      hfc2 /= 2048;
       int16_t smallhfc2;
       if (hfc2 >= 0x8000) {
         Serial.println("Smoothed HFC saturation");

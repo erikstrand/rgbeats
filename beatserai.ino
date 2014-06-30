@@ -116,8 +116,14 @@ void loop() {
 
     // Copy HFC samples to the extractor
     profiler.call(extractorAddSample);
-    myHFC.smoothedHFC.copySamples(extractor.workingMemory, samplesPerHFC, windowEnd);
+    myHFC.smoothedHFC.copySamples(extractor.workingMemory, hfcWindow, windowEnd);
     extractor.extractBeat(windowEndSample);
+    Serial.print("HFC samples: ");
+    for (int i=0; i<512; ++i) {
+      Serial.print(myHFC.smoothedHFC.buffer[i]);
+      Serial.print(", ");
+    }
+    Serial.println();
     profiler.finish(extractorAddSample);
     
     // Add beats to the tracker
@@ -145,7 +151,6 @@ void loop() {
     Serial.print(static_cast<int>(windowEndSample / samplesPerHFC) - static_cast<int>(windowEnd));
     Serial.println();
     profiler.finish(printing);
-
 
     profiler.call(lightsync);
     if (tracker.state < 2) {

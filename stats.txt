@@ -29,5 +29,36 @@ printing: 66 millis, 33 calls, 2.00 millis per call
 light syncing: 5 millis, 8703 calls, 0.00 millis per call
 63% lights, 13% raw fft, 0.2% beat tracking, 0.6% hfc calculation
 
+commit: (not recorded)
+runtime: 100627 millis
+analyze fft: 11538 millis, 8705 calls, 1.33 millis per call
+analyze other: 13273 millis, 8705 calls, 1.52 millis per call
+other fft0 calls
+hfccalculation: 1541 millis, 8705 calls, 0.18 millis per call
+buffer add sample: 29 millis, 8705 calls, 0.00 millis per call
+extractor add sample: 428 millis, 68 calls, 6.29 millis per call
+extractor frequency: 205 millis, 68 calls, 3.01 millis per call
+extractor phase: 214 millis, 68 calls, 3.15 millis per call
+tracker add hypothesis: 0 millis, 68 calls, 0.00 millis per call
+color change: 100069 millis, 11750 calls, 8.52 millis per call
+printing: 103 millis, 67 calls, 1.54 millis per call
+light syncing: 0 millis, 67 calls, 0.00 millis per call
+lights completely interspersed, 13% fft/hfc, 0.4% beat tracking
 
+commit: ?
+runtime: 100626 millis
+analyze fft: 11754 millis, 8705 calls, 1.35 millis per call
+analyze other: 13512 millis, 8705 calls, 1.55 millis per call
+other fft: 0 calls
+hfccalculation: 1556 millis, 8705 calls, 0.18 millis per call
+buffer add sample: 28 millis, 8705 calls, 0.00 millis per call
+extractor add sample: 757 millis, 68 calls, 11.13 millis per call
+extractor frequency: 240 millis, 68 calls, 3.53 millis per call
+extractor phase: 223 millis, 68 calls, 3.28 millis per call
+tracker add hypothesis: 0 millis, 68 calls, 0.00 millis per call
+color change: 99785 millis, 11894 calls, 8.39 millis per call
+printing: 55 millis, 67 calls, 0.82 millis per call
+light syncing: 0 millis, 67 calls, 0.00 millis per call
+onset detection: 134 millis, 8705 calls, 0.02 millis per call
+lights completely interspersed, 14% fft/hfc, 0.8% beat tracking
 
