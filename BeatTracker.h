@@ -75,7 +75,10 @@ template <unsigned SPH, unsigned HPB, unsigned M>
 void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
 
 /*
-  Serial.print("adding beat. Current anchor number: ");
+  Serial.print("State: ");
+  Serial.print(state);
+  Serial.println();
+  Serial.print("Adding beat. Current anchor number: ");
   Serial.print(anchorBeatNumber);
   Serial.println();
   Serial.print("new anchor sample: ");
@@ -85,7 +88,7 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
   Serial.print(", measurement sample: ");
   Serial.print(bh.measurementSample);
   Serial.println();
-*/
+  */
 
   //std::cout << "Current state: " << state << '\n';
   if (state == Unaligned) {
@@ -153,26 +156,29 @@ void BeatTracker<SPH, HPB, M>::addBeatHypothesis (BeatHypothesis const& bh) {
 //------------------------------------------------------------------------------
 template <unsigned SPH, unsigned HPB, unsigned M>
 unsigned BeatTracker<SPH, HPB, M>::hypothesesAreConsistent (BeatHypothesis const& bh1, BeatHypothesis const& bh2) const {
-  // TODO: optimize this math
   // calculate the largest whole number of beats from bh1 that occur before bh2's anchor
-  unsigned beatdiff = (bh2.anchorSample - bh1.anchorSample) / bh1.samplesPerBeat;
+  unsigned beatdiff = (bh2.anchorSample - bh1.anchorSample) / bh2.samplesPerBeat;
+  // calculate the number of samples between bh1's anchor, and the closest beat from bh2
+  unsigned samplediff = bh2.anchorSample - beatdiff*bh2.samplesPerBeat - bh1.anchorSample;
+
+  // calculate the largest whole number of beats from bh1 that occur before bh2's anchor
+  //unsigned beatdiff = (bh2.anchorSample - bh1.anchorSample) / bh1.samplesPerBeat;
   // calculate the number of samples between bh2's anchor, and the closest beat from bh1
-  unsigned samplediff = bh2.anchorSample - (bh1.anchorSample + beatdiff*bh1.samplesPerBeat);
+  //unsigned samplediff = bh2.anchorSample - (bh1.anchorSample + beatdiff*bh1.samplesPerBeat);
+
   // If we're more than half a beat off, the next beat is closer to bh2.anchorSample
-  if (samplediff > (bh1.samplesPerBeat / 2)) {
-    samplediff = bh1.samplesPerBeat - samplediff;
+  if (samplediff > (bh2.samplesPerBeat / 2)) {
+    samplediff = bh2.samplesPerBeat - samplediff;
     ++beatdiff;
   }
-  /*
   Serial.print("testing consistency. beat diff: ");
   Serial.print(beatdiff);
   Serial.print(", sample diff: ");
   Serial.print(samplediff);
   Serial.println();
-  */
   //std::cout << "Hypothesis difference is " << beatdiff << " beats and " << samplediff << " samples\n";
   // if the samplediff is less than 1/4th of a bh1 pulse, we consider the hypotheses aligned
-  return ((samplediff <= (bh1.samplesPerBeat / 4)) ? beatdiff : 0);
+  return ((samplediff <= (bh2.samplesPerBeat / 4)) ? beatdiff : 0);
 }
 
 //------------------------------------------------------------------------------

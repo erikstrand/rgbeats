@@ -37,19 +37,19 @@ public:
 	OctoWS2811(uint32_t numPerStrip, void *frameBuf, void *drawBuf, uint8_t config = WS2811_GRB);
 	void begin(void);
 
-	void setPixel(uint32_t num, int color);
+	void setPixel(uint32_t num, unsigned color);
 	void setPixel(uint32_t num, uint8_t red, uint8_t green, uint8_t blue) {
 		setPixel(num, color(red, green, blue));
 	}
-	int getPixel(uint32_t num);
+	unsigned getPixel(uint32_t num);
 
 	void show(void);
 	int busy(void);
 
-	int numPixels(void) {
+	unsigned numPixels(void) {
 		return stripLen * 8;
 	}
-	int color(uint8_t red, uint8_t green, uint8_t blue) {
+	unsigned color(uint8_t red, uint8_t green, uint8_t blue) {
 		return (red << 16) | (green << 8) | blue;
 	}
 	

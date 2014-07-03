@@ -238,7 +238,7 @@ void OctoWS2811::show(void)
 	interrupts();
 }
 
-void OctoWS2811::setPixel(uint32_t num, int color)
+void OctoWS2811::setPixel(uint32_t num, unsigned color)
 {
 	uint32_t strip, offset, mask;
 	uint8_t bit, *p;
@@ -269,11 +269,11 @@ void OctoWS2811::setPixel(uint32_t num, int color)
 	}
 }
 
-int OctoWS2811::getPixel(uint32_t num)
+unsigned OctoWS2811::getPixel(uint32_t num)
 {
 	uint32_t strip, offset, mask;
 	uint8_t bit, *p;
-	int color=0;
+	unsigned color=0;
 
 	strip = num / stripLen;
 	offset = num % stripLen;

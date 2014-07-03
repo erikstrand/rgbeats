@@ -9,6 +9,7 @@
 #include "BeatExtractor.h"
 #include "BeatTracker.h"
 #include "esProfiler.h"
+#include "LightProgram.h"
 
 
 //------------------------------------------------------------------------------
@@ -65,276 +66,8 @@ unsigned long t1 = 0;
 int color = 0;
 int colors[] = {RED, RED2, ORANGE, ORANGE2, GREEN, GREEN2, BLUE, BLUE2, PINK, PINK2, WHITE};
 
-const unsigned cubehelix[] = {
-0x000000, 0x000000, 0x000000, 0x010000, 0x010000, 0x020001, 0x030001, 0x030001, 0x030101, 0x030101, 0x030101, 0x040102, 0x040102, 0x040102, 0x050103, 0x060103, 0x060104, 0x060204, 0x070204, 0x070204, 0x070205, 0x070205, 0x070205, 0x080206, 0x080206, 0x090207, 0x090207, 0x090308, 0x090308, 0x0a0309, 0x0a0309, 0x0a0309,
-0x0a030a, 0x0a030a, 0x0b040b, 0x0b040b, 0x0b040c, 0x0b040c, 0x0b040d, 0x0b040d, 0x0c050e, 0x0c050e, 0x0c050f, 0x0c0510, 0x0c0610, 0x0c0610, 0x0c0611, 0x0c0612, 0x0c0712, 0x0c0712, 0x0c0713, 0x0c0714, 0x0c0814, 0x0c0814, 0x0c0815, 0x0c0815, 0x0c0916, 0x0b0917, 0x0b0917, 0x0b0a17, 0x0b0a18, 0x0b0b18, 0x0b0b18, 0x0b0b19,
-0x0a0c19, 0x0a0c1a, 0x0a0c1a, 0x0a0c1a, 0x0a0d1a, 0x0a0d1a, 0x0a0d1a, 0x090e1b, 0x090f1b, 0x090f1c, 0x090f1c, 0x08101c, 0x08101c, 0x08111c, 0x07111c, 0x07111c, 0x07121c, 0x07121c, 0x07131c, 0x06141d, 0x06141c, 0x06141c, 0x06141c, 0x06151c, 0x06151c, 0x05161c, 0x05161c, 0x05171c, 0x05181c, 0x04181c, 0x04181c, 0x04181c,
-0x04191b, 0x04191b, 0x041a1b, 0x041a1b, 0x041b1a, 0x041c1a, 0x041c1a, 0x041c19, 0x031d19, 0x031d18, 0x031e18, 0x041e18, 0x041e17, 0x041f17, 0x041f16, 0x041f16, 0x042016, 0x042015, 0x042115, 0x042114, 0x052114, 0x052114, 0x052213, 0x052212, 0x062312, 0x062312, 0x062311, 0x062310, 0x072410, 0x07240f, 0x08240f, 0x08240f,
-0x08240e, 0x08240e, 0x09250d, 0x09250d, 0x0a250c, 0x0b250c, 0x0c250b, 0x0c260b, 0x0c260b, 0x0d260a, 0x0e2609, 0x0f2609, 0x0f2608, 0x102608, 0x112608, 0x112608, 0x122607, 0x132607, 0x142606, 0x152606, 0x152606, 0x162606, 0x172605, 0x182605, 0x192605, 0x1a2605, 0x1b2605, 0x1c2604, 0x1d2504, 0x1e2504, 0x1f2504, 0x202504,
-0x212504, 0x222504, 0x232504, 0x242404, 0x252404, 0x262404, 0x272405, 0x282405, 0x292305, 0x2a2305, 0x2b2305, 0x2c2306, 0x2d2206, 0x2e2206, 0x2f2207, 0x302207, 0x312108, 0x322108, 0x332109, 0x342109, 0x35200a, 0x36200a, 0x36200b, 0x37200c, 0x381f0c, 0x391f0d, 0x3a1f0e, 0x3b1f0e, 0x3c1e0f, 0x3d1e10, 0x3e1e11, 0x3e1e12,
-0x3f1d13, 0x401d14, 0x411d15, 0x411d16, 0x421c17, 0x431c18, 0x441c19, 0x441c1a, 0x451c1b, 0x451c1c, 0x461b1d, 0x471b1e, 0x471b1f, 0x481b20, 0x481b22, 0x481b23, 0x491b24, 0x491b25, 0x4a1a27, 0x4a1a28, 0x4a1a29, 0x4a1a2a, 0x4b1a2c, 0x4b1a2d, 0x4b1a2e, 0x4b1a30, 0x4b1a31, 0x4b1a32, 0x4b1b33, 0x4b1b35, 0x4b1b36, 0x4b1b37,
-0x4b1b39, 0x4b1b3a, 0x4b1b3b, 0x4b1c3d, 0x4a1c3e, 0x4a1c3f, 0x4a1c40, 0x4a1c42, 0x491d43, 0x491d44, 0x491d45, 0x481e47, 0x481e48, 0x471e49, 0x471f4a, 0x461f4b, 0x46204c, 0x45204d, 0x44214e, 0x44214f, 0x432150, 0x422251, 0x422252, 0x412353, 0x402454, 0x3f2455, 0x3f2556, 0x3e2557, 0x3e2557, 0x3e2557, 0x3e2557, 0x3e2557,
-0x3e2557, 0x3e2557, 0x3e2557, 0x3d2658 
-};
-
-const int cubehelix2[] = {
-0x000000,
-0x000000,
-0x000000,
-0x000000,
-0x000000,
-0x000000,
-0x000001,
-0x000001,
-0x000001,
-0x000001,
-0x000001,
-0x000002,
-0x000102,
-0x010102,
-0x010102,
-0x010102,
-0x010103,
-0x010103,
-0x010103,
-0x010103,
-0x010103,
-0x010204,
-0x010204,
-0x010204,
-0x010204,
-0x010204,
-0x010204,
-0x010205,
-0x010305,
-0x010305,
-0x010305,
-0x010305,
-0x010305,
-0x010305,
-0x010306,
-0x010406,
-0x010406,
-0x010406,
-0x010406,
-0x010406,
-0x010406,
-0x010406,
-0x010506,
-0x010507,
-0x010507,
-0x010507,
-0x010507,
-0x010507,
-0x010607,
-0x010607,
-0x010607,
-0x010607,
-0x010607,
-0x010707,
-0x000707,
-0x000707,
-0x000707,
-0x000707,
-0x000707,
-0x000807,
-0x000807,
-0x000807,
-0x000807,
-0x000807,
-0x000807,
-0x000907,
-0x000907,
-0x000907,
-0x000907,
-0x000907,
-0x000907,
-0x000a07,
-0x000a07,
-0x000a07,
-0x010a07,
-0x010a07,
-0x010a07,
-0x010b06,
-0x010b06,
-0x010b06,
-0x010b06,
-0x010b06,
-0x010b06,
-0x010c06,
-0x010c06,
-0x010c06,
-0x010c06,
-0x010c05,
-0x010c05,
-0x020c05,
-0x020d05,
-0x020d05,
-0x020d05,
-0x020d05,
-0x020d05,
-0x020d04,
-0x020d04,
-0x030d04,
-0x030e04,
-0x030e04,
-0x030e04,
-0x030e04,
-0x030e04,
-0x040e03,
-0x040e03,
-0x040e03,
-0x040e03,
-0x040e03,
-0x050f03,
-0x050f03,
-0x050f02,
-0x050f02,
-0x060f02,
-0x060f02,
-0x060f02,
-0x060f02,
-0x070f02,
-0x070f02,
-0x070f02,
-0x070f01,
-0x080f01,
-0x080f01,
-0x080f01,
-0x090f01,
-0x090f01,
-0x090f01,
-0x0a0f01,
-0x0a0f01,
-0x0a0f01,
-0x0b0f01,
-0x0b0f01,
-0x0b0f01,
-0x0c0f01,
-0x0c0f00,
-0x0c0f00,
-0x0d0f00,
-0x0d0f00,
-0x0e0f00,
-0x0e0f00,
-0x0e0f00,
-0x0f0f00,
-0x0f0f00,
-0x0f0f00,
-0x100f01,
-0x100f01,
-0x110f01,
-0x110f01,
-0x110f01,
-0x120f01,
-0x120f01,
-0x130f01,
-0x130f01,
-0x140f01,
-0x140f01,
-0x140f02,
-0x150e02,
-0x150e02,
-0x160e02,
-0x160e02,
-0x160e02,
-0x170e03,
-0x170e03,
-0x180e03,
-0x180e03,
-0x180e03,
-0x190e04,
-0x190e04,
-0x1a0e04,
-0x1a0d04,
-0x1a0d05,
-0x1b0d05,
-0x1b0d05,
-0x1c0d06,
-0x1c0d06,
-0x1c0d06,
-0x1d0d06,
-0x1d0d07,
-0x1d0d07,
-0x1e0d08,
-0x1e0d08,
-0x1e0d08,
-0x1f0c09,
-0x1f0c09,
-0x1f0c09,
-0x200c0a,
-0x200c0a,
-0x200c0b,
-0x210c0b,
-0x210c0c,
-0x210c0c,
-0x220c0c,
-0x220c0d,
-0x220c0d,
-0x220c0e,
-0x230c0e,
-0x230c0f,
-0x230c0f,
-0x230c10,
-0x230c10,
-0x240b11,
-0x240b11,
-0x240b12,
-0x240b12,
-0x240b13,
-0x250b13,
-0x250b14,
-0x250b15,
-0x250b15,
-0x250b16,
-0x250b16,
-0x250b17,
-0x250b17,
-0x250b18,
-0x250c18,
-0x250c19,
-0x260c1a,
-0x260c1a,
-0x260c1b,
-0x260c1b,
-0x260c1c,
-0x260c1c,
-0x260c1d,
-0x260c1e,
-0x250c1e,
-0x250c1f,
-0x250c1f,
-0x250c20,
-0x250d20,
-0x250d21,
-0x250d21,
-0x250d22,
-0x250d23,
-0x250d23,
-0x240d24,
-0x240d24,
-0x240e25,
-0x240e25,
-0x240e26,
-0x240e26,
-0x230e27,
-0x230e27,
-0x230f28,
-0x230f28,
-0x220f29,
-0x220f29,
-0x22102a,
-0x22102a,
-0x21102b,
-0x21102b,
-0x21102c,
-0x20112c,
-0x20112c,
-0x20112d,
-0x1f112d,
-0x1f122e,
-0x1f122e
-};
+//extern const unsigned cubehelix[];
+extern const unsigned cubehelix2[];
 
 //------------------------------------------------------------------------------
 // function that maps [0, 255] to RGB values
@@ -343,6 +76,7 @@ const int cubehelix2[] = {
 int cscaleCubeHelix (int x) {
   return cubehelix2[x];
 }
+
 
 //------------------------------------------------------------------------------
 void colorChange (int color) {
@@ -369,23 +103,6 @@ void showColorScale (OctoWS2811& leds, int (*cs)(int), unsigned number = ledsPer
 }
 
 //------------------------------------------------------------------------------
-void spectroColors (volatile uint16_t const* spectrum) {
-  for (unsigned i=0; i<ledsPerStrip; ++i) {
-    unsigned bin1 = 8 + 2*i;
-    unsigned power = 16*(spectrum[bin1] + spectrum[bin1+1]);
-    power &= 0xFF; // make sure we saturate at 255
-    int value = cubehelix2[power];
-    leds.setPixel(i, value);
-    leds.setPixel(i+ledsPerStrip, value);
-    leds.setPixel(i+2*ledsPerStrip, value);
-    //leds.setPixel(i, cubehelix[i]);
-    //leds.setPixel(i+ledsPerStrip, cubehelix[i]);
-    //leds.setPixel(i+2*ledsPerStrip, cubehelix[i]);
-  }
-  leds.show();
-}
-
-//------------------------------------------------------------------------------
 void lanterns () {
   static unsigned lanternYellow = 0xFF6000;
   for (unsigned i=0; i<ledsPerStrip; ++i) {
@@ -403,26 +120,7 @@ void lanterns () {
   leds.show();
 }
 
-//------------------------------------------------------------------------------
-class VUMeter {
-public:
-  unsigned lastPrint;
-  static const int scale = 3000000;
-  VUMeter (): lastPrint(0) {}
-  void draw (OctoWS2811& leds);
-};
-void VUMeter::draw (OctoWS2811& leds) {
-  unsigned hfcaverage = static_cast<unsigned>(myHFC.rawHFC.mean());
-  hfcaverage = hfcaverage * ledsPerStrip / scale;
-  if (hfcaverage >= ledsPerStrip) { hfcaverage = ledsPerStrip - 1; }
-  if (lastPrint == 1000) {
-    lastPrint = 0;
-    Serial.println(hfcaverage);
-  }
-  showColorScale(leds, &cscaleCubeHelix, hfcaverage);
-  ++lastPrint;
-}
-VUMeter vumeter;
+
 
 //------------------------------------------------------------------------------
 //RingBufferWithMedian<int, 64> hfcBuffer;
@@ -434,6 +132,30 @@ BeatTracker<hfcWindow, samplesPerHFC, HFCPerBeatHypothesis> tracker;
 unsigned lastBeat = 0;
 unsigned newBeat = 0;
 unsigned beatPos = 0;
+
+//------------------------------------------------------------------------------
+CubeHelixScale cubehelixScale;
+
+//------------------------------------------------------------------------------
+Spectrum spectrumProgram;
+ColorScaleProgram cubehelixProgram(&cubehelixScale);
+//VUMeter vumeterProgram(&cubehelixProgram);
+VUMeter vumeterProgram(&spectrumProgram);
+ProgramRepeater doublevuProgram(2, &vumeterProgram);
+
+
+//------------------------------------------------------------------------------
+void runProgram (LightProgram* program) {
+  unsigned value, beat, beatpos;
+  tracker.currentPosition(myHFC.sampleNumber, beat, beatpos);
+  for (unsigned i=0; i<ledsPerStrip; ++i) {
+    value = program->pixel(i, beat, beatpos, (unsigned)myHFC.rawHFC.mean(), myHFC.output);
+    leds.setPixel(i, value);
+    leds.setPixel(i+ledsPerStrip, value);
+    leds.setPixel(i+2*ledsPerStrip, value);
+  }
+  leds.show();
+}
 
 
 //------------------------------------------------------------------------------
@@ -511,7 +233,7 @@ void loop() {
     */
   }
 
-  profiler.call(lightsync);
+  /*profiler.call(lightsync);
   if (tracker.state < 2) {
     lastBeat = newBeat;
     tracker.currentPosition(myHFC.sampleNumber, newBeat, beatPos);
@@ -524,6 +246,7 @@ void loop() {
   } else {
     newBeat = 0;
   }
+  */
   /*
   Serial.print("lights for beat ");
   Serial.print(newBeat);
@@ -531,21 +254,31 @@ void loop() {
   Serial.print(beatPos);
   Serial.println();
   */
+
+  profiler.call(lightsync);
+  //runProgram(reinterpret_cast<LightProgram*>(&spectrumProgram));
+  //runProgram(&spectrumProgram);
+  //runProgram(&vumeterProgram);
+  runProgram(&doublevuProgram);
+  //runProgram(&cubehelixProgram);
   profiler.finish(lightsync);
 
+
   /*
+  profiler.finish(lightsync);
+
   if (myHFC.samplesSinceLastOnset < 5) {
     colorChange(colors[color+1]);
   } else {
     colorChange(colors[color]);
   }
   */
-  profiler.call(colorchange);
+  //profiler.call(colorchange);
   //spectroColors(myHFC.output);
-  vumeter.draw(leds);
+  //vumeter.draw(leds);
   //colorChange(0x212504);
   //showColorScale(leds, &cscaleCubeHelix);
   //lanterns();
-  profiler.finish(colorchange);
+  //profiler.finish(colorchange);
 }
 
