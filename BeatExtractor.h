@@ -163,14 +163,17 @@ unsigned BeatExtractor<W, SPH>::findFrequency () {
   unsigned twoi;
 
   // Pass autocorrelation function through a comb filter.
-  // overflow possibility - could fix by using in place 32 bit copy (correctly combine real and complex parts first)
   // No need to let i reach 1, as this represents a tempo so fast
   // that it's beyond the Nyquist frequency of our HFC samplerate.
+  // Autocorrelation is circular, and has bilateral symmetry about 0 and W,
+  // so the value at workingMemory32[i] should be equal to workingMemory32[2*W - i].
   for (unsigned i=W/2-1; i>1; --i) {
     twoi = i<<1;
     workingMemory32[i] += workingMemory32[twoi];
+    workingMemory32[i] += workingMemory32[2*W - twoi];
     for (unsigned j=twoi+i; j<W; j+=twoi) {
       workingMemory32[i] += workingMemory32[j];
+      workingMemory32[i] += workingMemory32[2*W - j];
     }
   }
 
@@ -239,6 +242,8 @@ void BeatExtractor<W, SPH>::calculateCrossCorrelation (unsigned hfcsPerBeat) {
   // our impulse train hypothesizes a beat at the last HFC sample.
   // We will use a reverse time cross correlation to find how far
   // back this train needs to be pushed to really match up.
+  // Note: Impulse train could extend forward and backward from this point.
+  // Max could then be found after summing multiples of the tempo. 
   Complex<int16_t>::zero(workingMemory2, 2*W);
   for (unsigned i=W-1; i<W; i-=hfcsPerBeat) {
     workingMemory2[i].re() = 8192;
@@ -277,7 +282,7 @@ void BeatExtractor<W, SPH>::findPhase (unsigned hfcsPerBeat) {
   //Serial.println();
 
   // store the location of the last beat (in HFC samples)
-  beat.anchorSample = SPH*(beat.measurementSample - 1 - maxindex);
+  beat.anchorSample = beat.measurementSample - 1 -  SPH*maxindex;
 }
 
 //------------------------------------------------------------------------------

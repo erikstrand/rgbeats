@@ -64,7 +64,7 @@ public:
   // HFC with trailing median subtracted. We store 2 times the Beat Extraction window.
   RingBuffer<int16_t, 1024> smoothedHFC;
   volatile unsigned sampleNumber;
-  uint16_t output[512] __attribute__ ((aligned (4)));
+  volatile uint16_t output[512] __attribute__ ((aligned (4)));
   unsigned hfcWindowEnd;
   unsigned hfcWindowEndSample;
   volatile unsigned samplesSinceLastOnset;

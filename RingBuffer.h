@@ -86,7 +86,7 @@ public:
   inline T newestSample () const { return rbuffer.newestSample(); }
   inline void copySamples (Complex<T>* dst, unsigned n) const { rbuffer.copySamples(dst, n); }
   inline T median () const { return sbuffer[N/2]; }
-  inline T average () const { return sum/N; }
+  inline T mean () const { return sum/N; }
   //inline T variance () const { return sumsquare - sum*sum; }
   inline T stddeviation () { arm_std_q31(rbuffer.buffer, N, &sigma); return sigma; }
 };
