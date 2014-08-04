@@ -141,19 +141,22 @@ Spectrum spectrumProgram;
 ColorScaleProgram cubehelixProgram(&cubehelixScale);
 //VUMeter vumeterProgram(&cubehelixProgram);
 VUMeter vumeterProgram(&spectrumProgram);
+AffineTransformationProgram affineProgram(&vumeterProgram, 100, 1, 1);
 ProgramRepeater doublevuProgram(2, &vumeterProgram);
 
 
 //------------------------------------------------------------------------------
 void runProgram (LightProgram* program) {
+  static unsigned id = 0;
   unsigned value, beat, beatpos;
   tracker.currentPosition(myHFC.sampleNumber, beat, beatpos);
   for (unsigned i=0; i<ledsPerStrip; ++i) {
-    value = program->pixel(i, beat, beatpos, (unsigned)myHFC.rawHFC.mean(), myHFC.output);
+    value = program->pixel(i, id, beat, beatpos, (unsigned)myHFC.rawHFC.mean(), myHFC.output);
     leds.setPixel(i, value);
     leds.setPixel(i+ledsPerStrip, value);
     leds.setPixel(i+2*ledsPerStrip, value);
   }
+  ++id;
   leds.show();
 }
 
@@ -260,6 +263,7 @@ void loop() {
   //runProgram(&spectrumProgram);
   //runProgram(&vumeterProgram);
   runProgram(&doublevuProgram);
+  //runProgram(&affineProgram);
   //runProgram(&cubehelixProgram);
   profiler.finish(lightsync);
 

@@ -14,14 +14,14 @@ extern const int ledsPerStrip;
 // virtual base class for light programs
 class LightProgram {
 public:
-  virtual unsigned pixel (unsigned x, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) = 0;
+  virtual unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) = 0;
 };
 
 //------------------------------------------------------------------------------
 class Spectrum : public LightProgram {
 public:
   Spectrum () {}
-  unsigned pixel (unsigned x, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 
 //------------------------------------------------------------------------------
@@ -30,7 +30,7 @@ public:
   static const int scale = 3000000;
   LightProgram* p1;
   VUMeter (LightProgram* p): p1(p) {}
-  unsigned pixel (unsigned x, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 
 //------------------------------------------------------------------------------
@@ -39,8 +39,41 @@ public:
    unsigned copies;
    LightProgram* p1;
    ProgramRepeater (unsigned c, LightProgram* p): copies(c), p1(p) {}
-   unsigned pixel (unsigned x, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
+
+//------------------------------------------------------------------------------
+/*
+class TranspositionProgrm : LightProgram {
+   LightProgram* p;
+   unsigned shift;
+   TranspositionProgram (LightPixel* p_, unsigned shift)
+
+};
+*/
+
+//------------------------------------------------------------------------------
+class AffineTransformationProgram : public LightProgram {
+public:
+   LightProgram* p;
+   unsigned a;
+   int numerator;
+   int denominator;
+   AffineTransformationProgram (LightProgram* p_, unsigned a_, int n_, int d_): p(p_), a(a), numerator(n_), denominator(d_) {}
+   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+
+//------------------------------------------------------------------------------
+/*
+class BufferProgram : public LightProgram {
+public:
+   unsigned buffer[ledsPerStrip];
+   LightProgram* p;
+   unsigned currentid;
+   BufferProgram (LightProgram* p_): p(p_), currentid(~0) { memset(buffer, 0, ledsPerStrip*sizeof(unsigned)); }
+   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+*/
 
 //------------------------------------------------------------------------------
 class ColorScale {
@@ -55,7 +88,7 @@ class ColorScaleProgram : public LightProgram {
 public:
   ColorScale* cs;
   ColorScaleProgram (ColorScale* c): cs(c) {}
-  unsigned pixel (unsigned x, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 
 
