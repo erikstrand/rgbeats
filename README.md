@@ -5,14 +5,14 @@ Realtime, beat matching light show for LED stings, as seen as Burning Man 2014 a
 
 
 Hardware
-========
+--------
 
 This softare is designed for the Teensy 3.1, OctoWS2811 Adaptor, and the Teensy Audio Board.
 The OctoWS2811 Adaptor drives WS2811 or WS2812 LED strings (aka NeoPixels from Adafruit).
 
 
-Overview
-========
+Software Overview
+-----------------
 
 RGBeats generates a light show that moves in time with music.
 It can roughly be divided into two parts: the half that deals with processing the music,
