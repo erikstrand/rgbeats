@@ -132,6 +132,7 @@ void AudioAnalyzeHfcOnset::update(void)
         uint32_t magsq = multiply_16tx16t_add_16bx16b(tmp, tmp);
         uint32_t mag = sqrt_uint32_approx(magsq);
         output[i] = static_cast<uint16_t>(mag);
+        // We use a measure halfway between raw summed power and true HFC.
         hfc += (512+i)*static_cast<int32_t>(mag);
       }
       profiler.finish(hfccalculation);
@@ -146,10 +147,13 @@ void AudioAnalyzeHfcOnset::update(void)
       int32_t median = rawHFC.median();
       int32_t sdev = rawHFC.stddeviation();
       int32_t hfc2 = hfc - median;
-      if (samplesSinceLastOnset > refractorySamples and hfc2 - 2*sdev > 0) {
+      int32_t stddevs = hfc2 / sdev;
+      int32_t hfc3 = hfc2 - sdev;
+      if (samplesSinceLastOnset > refractorySamples and stddevs >= 2) {
         samplesSinceLastOnset = 0;
+        lastOnsetSignificance = stddevs;
       } else {
-        samplesSinceLastOnset++;
+        ++samplesSinceLastOnset;
       }
       profiler.finish(onsetDetection);
 

@@ -36,6 +36,7 @@ public:
   inline unsigned hsvPack () const;
   inline void rgbRepresentation ();
   inline void hsvRepresentation ();
+  inline Color& operator= (Color const& c) { x1 = c.x1; x2 = c.x2; x3 = c.x3; hsv = c.hsv; return *this; }
 private:
   inline static unsigned packComponents (unsigned c1, unsigned c2, unsigned c3);
   void rgbComponents (unsigned& r, unsigned& g, unsigned& b) const;

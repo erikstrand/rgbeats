@@ -99,8 +99,11 @@ LEDRing< BeatTracker<hfcWindow, samplesPerHFC, HFCPerBeatHypothesis>, ledsPerStr
 CubeHelixScale cubehelixScale;
 
 //------------------------------------------------------------------------------
-Solid<nLeds> solid1(0x090400);
-Lanterns<nLeds> lanterns1(0x010000, 0xFF6000, 8, 6);
+Solid<nLeds> solid1(0x000409);
+Solid<nLeds> solidGlow(0xF06000);
+Solid<nLeds> solidBlack(0x000000);
+Flicker flicker(&solidGlow);
+Lanterns<nLeds> lanterns1(&flicker, &solidBlack, 8, 6);
 SpectrumProgram<nLeds> spectrum1;
 SpectrumProgram<nLeds/16> spectrum2;
 
