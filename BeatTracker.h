@@ -3,8 +3,8 @@
 // Created 2014-06-15
 //==============================================================================
 
-#ifndef BEATSERAI_BEATTRACKER
-#define BEATSERAI_BEATTRACKER
+#ifndef RGBEATS_BEATTRACKER
+#define RGBEATS_BEATTRACKER
 
 #include <cmath>
 #include "utils.h"
@@ -203,5 +203,4 @@ inline void BeatTracker<SPH, HPB, M>::currentPosition (unsigned sampleNumber, un
   beatPos = (sampleNumber - beatNumber*hypothesis1.samplesPerBeat) * 1024 / hypothesis1.samplesPerBeat;
 }
 
-
-#endif // BEATSERAI_BEATTRACKER
+#endif

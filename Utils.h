@@ -3,8 +3,8 @@
 // Created 2014-06-10
 //==============================================================================
 
-#ifndef BEATSERAI_UTILS
-#define BEATSERAI_UTILS
+#ifndef RGBEATS_UTILS
+#define RGBEATS_UTILS
 
 
 //==============================================================================
@@ -121,5 +121,5 @@ public:
   }
 };
 
-#endif // BEATSERAI_UTILS
+#endif
 

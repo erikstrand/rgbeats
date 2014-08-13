@@ -3,8 +3,8 @@
 // Created 2014-06-15
 //==============================================================================
 
-#ifndef BEATSERAI_PULSEEXTRACTOR
-#define BEATSERAI_PULSEEXTRACTOR
+#ifndef RGBEATS_PULSEEXTRACTOR
+#define RGBEATS_PULSEEXTRACTOR
 
 //#include <cmath>
 #include <arm_math.h>
@@ -298,5 +298,5 @@ void BeatExtractor<W, SPH>::saveWorkingMemory (char const* name, bool bank2) con
 }
 */
 
-#endif // BEATSERAI_PULSEEXTRACTOR
+#endif
 

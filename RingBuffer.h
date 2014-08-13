@@ -3,8 +3,8 @@
 // Created 2014-06-15
 //==============================================================================
 
-#ifndef BEATSERAI_RINGBUFFER
-#define BEATSERAI_RINGBUFFER
+#ifndef RGBEATS_RINGBUFFER
+#define RGBEATS_RINGBUFFER
 
 #include "arm_math.h"
 #include "Complex.h"
@@ -111,5 +111,5 @@ unsigned RingBufferWithMedian<T, N>::addSample (T x) {
   return rbuffer.addSample(x);
 }
 
-#endif // BEATSERAI_RINGBUFFER
+#endif
 

@@ -3,8 +3,8 @@
 // Created 2014-07-02
 //==============================================================================
 
-#ifndef BEATSERAI_LIGHTPROGRAM
-#define BEATSERAI_LIGHTPROGRAM
+#ifndef RGBEATS_LIGHTPROGRAM
+#define RGBEATS_LIGHTPROGRAM
 
 #include <arm_math.h>
 #include "ColorUtils.h"
@@ -402,6 +402,5 @@ unsigned CubeHelixScale::color (unsigned x) {
   return cubehelix2[x * 256 / ColorScale::max];
 }
 */
-
 
 #endif
