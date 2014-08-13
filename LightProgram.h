@@ -7,8 +7,80 @@
 #define BEATSERAI_LIGHTPROGRAM
 
 #include <arm_math.h>
+#include "ColorUtils.h"
 
 extern const int ledsPerStrip;
+
+
+//==============================================================================
+// Helpers
+//==============================================================================
+
+//------------------------------------------------------------------------------
+inline unsigned interpolateColor (unsigned c1, unsigned c2, unsigned diff, unsigned scale) {
+  unsigned x1, x2;
+  unsigned c3 = 0;
+
+  // interpolate red
+  x1 = c1 >> 16;
+  x2 = c2 >> 16;
+  if (x2 >= x1) {
+    c3 |= (x1 + (diff * (x2 - x1) / scale)) << 16;
+  } else {
+    c3 |= (x2 + ((scale - diff) * (x1 - x2) / scale)) << 16;
+  }
+
+  // interpolate green
+  x1 = (c1 >> 8) & 0xFF;
+  x2 = (c2 >> 8) & 0xFF;
+  if (x2 >= x1) {
+    c3 |= (x1 + (diff * (x2 - x1) / scale)) << 8;
+  } else {
+    c3 |= (x2 + ((scale - diff) * (x1 - x2) / scale)) << 8;
+  }
+
+  // interpolate blue
+  x1 = c1 & 0xFF;
+  x2 = c2 & 0xFF;
+  if (x2 >= x1) {
+    c3 |= x1 + (diff * (x2 - x1) / scale);
+  } else {
+    c3 |= x2 + ((scale - diff) * (x1 - x2) / scale);
+  }
+
+  return c3;
+};
+
+//------------------------------------------------------------------------------
+class SpectrumInterpolator {
+public:
+  static const unsigned spectrumMax = 511;
+public:
+  SpectrumInterpolator () {}
+  inline unsigned pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax);
+};
+
+unsigned SpectrumInterpolator::pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax) {
+  unsigned n2 = n * spectrumMax;  // scale output pixel to common coords
+  unsigned s1 = n2 / outMax;      // index of first sample
+  unsigned diff = n2 - s1*outMax; // distance out from first sample
+  if (diff == 0) {
+    return 64*spectrum[s1];
+  } else {
+    unsigned v1 = spectrum[s1];
+    unsigned v2 = spectrum[s1+1];
+    if (v2 >= v1) {
+      return 64 * v1 + 64 * diff * (v2 - v1) / outMax;
+    } else {
+      return 64 * v2 + 64 * (outMax - diff) * (v1 - v2) / outMax;
+    }
+  }
+}
+
+
+//==============================================================================
+// Base Classes
+//==============================================================================
 
 //------------------------------------------------------------------------------
 // virtual base class for light programs
@@ -18,50 +90,248 @@ public:
 };
 
 //------------------------------------------------------------------------------
-class Spectrum : public LightProgram {
+class ColorScale {
 public:
-  Spectrum () {}
+  static const unsigned max = (1 << 16);
+  // returns a color given a number between 1 and 2^16
+  virtual unsigned color (unsigned x) = 0;
+};
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+class ColorScaleProgram : public LightProgram {
+public:
+  ColorScale* cs;
+  ColorScaleProgram (ColorScale* c): cs(c) {}
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+
+template <unsigned N>
+unsigned ColorScaleProgram<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  return cs->color(x * ColorScale::max / N);
+}
+
+//------------------------------------------------------------------------------
+/*
+template <unsigned N>
+class BufferProgram : public LightProgram {
+};
+*/
+
+
+//==============================================================================
+// Sources
+//==============================================================================
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+class Solid : public LightProgram {
+private:
+  unsigned color;
+public:
+  Solid (unsigned c): color(c) {}
+  inline unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+    return color;
+  }
+};
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+class Lanterns : public LightProgram {
+private:
+  unsigned offColor;
+  unsigned onColor;
+  unsigned nLanterns;
+  unsigned width;
+  unsigned separation;
+public:
+  inline Lanterns (unsigned c1, unsigned c2, unsigned l, unsigned w): offColor(c1), onColor(c2), nLanterns(l), width(w) {
+    separation = N / nLanterns;
+  }
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+
+template <unsigned N>
+unsigned Lanterns<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  if (x % separation < width) { return onColor; }
+  else { return offColor; }
+}
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+class SpectrumProgram : public LightProgram {
+private:
+  SpectrumInterpolator si;
+public:
+  inline SpectrumProgram () {}
   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 
 //------------------------------------------------------------------------------
+template <unsigned N>
 class VUMeter : public LightProgram {
 public:
-  static const int scale = 3000000;
+  //static const int scale = 3000000;
+  static const int scale = 30000;
   LightProgram* p1;
   VUMeter (LightProgram* p): p1(p) {}
   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 
+template <unsigned N>
+unsigned VUMeter<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  hfc >>= 16;
+  hfc = log2_fp(hfc);
+  unsigned max = hfc * N / scale;
+  if (max >= N) { max = N; }
+  if (x <= max) {
+    return p1->pixel(x, id, beat, beatpos, hfc, spectrum);
+  } else {
+    return 0;
+  }
+}
+
+//==============================================================================
+// Filters
+//==============================================================================
+
 //------------------------------------------------------------------------------
-class ProgramRepeater : public LightProgram {
+template <unsigned N>
+class RotateProgram : public LightProgram {
 public:
-   unsigned copies;
-   LightProgram* p1;
-   ProgramRepeater (unsigned c, LightProgram* p): copies(c), p1(p) {}
-   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+  LightProgram* p1;
+  unsigned rotation;
+  RotateProgram (LightProgram* p, unsigned r): p1(p), rotation(r) {}
+  inline unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+    if (x < rotation) { x += N; }
+    return p1->pixel(x - rotation, id, beat, beatpos, hfc, spectrum);
+  }
 };
+
+//------------------------------------------------------------------------------
+class LinearInterpolator : public LightProgram {
+private:
+  LightProgram* p1;
+  unsigned n1; // number of pixels generated by p1
+  unsigned n2; // number of pixels desired
+  bool flip;   // if true, the program is flipped in addition to stretched
+public:
+  LinearInterpolator (LightProgram* p, unsigned n1, unsigned n2): p1(p), n1(n1), n2(n2), flip(false) {}
+  inline void setProgram (LightProgram* p) { p1 = p; }
+  inline void setBounds (unsigned new_n1, unsigned new_n2) { n1 = new_n1; n2 = new_n2; }
+  inline void setFlip (bool f) { flip = f; }
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+
+unsigned LinearInterpolator::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  unsigned x2 = x * n1;  // scale output pixel to common coords
+  if (flip) { x2 = n1 * n2 - x2; }
+  unsigned s1 = x2 / n2; // index of first sample
+  unsigned diff = x2 - s1*n2; // distance out from first sample
+  if (diff == 0) {
+    return p1->pixel(s1, id, beat, beatpos, hfc, spectrum);
+  } else {
+    unsigned c1 = p1->pixel(s1, id, beat, beatpos, hfc, spectrum);
+    unsigned c2 = p1->pixel(s1 + 1, id, beat, beatpos, hfc, spectrum);
+    return interpolateColor(c1, c2, diff, n2);
+  }
+}
 
 //------------------------------------------------------------------------------
 /*
-class TranspositionProgrm : LightProgram {
-   LightProgram* p;
-   unsigned shift;
-   TranspositionProgram (LightPixel* p_, unsigned shift)
-
+template <unsigned N>
+class ProgramMapper : public LightProgram {
+public:
+  static const unsigned maxPrograms = 16;
+  unsigned splits[maxPrograms];
+  bool flips[maxPrograms];
+  LightProgram* programs[maxPrograms];
+  unsigned activePrograms;
+public:
+   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
+
+template <unsigned N>
+unsigned ProgramMapper<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+}
 */
 
 //------------------------------------------------------------------------------
-class AffineTransformationProgram : public LightProgram {
+template <unsigned N>
+class ProgramRepeater : public LightProgram {
 public:
-   LightProgram* p;
-   unsigned a;
-   int numerator;
-   int denominator;
-   AffineTransformationProgram (LightProgram* p_, unsigned a_, int n_, int d_): p(p_), a(a), numerator(n_), denominator(d_) {}
-   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+  //LightProgram* p1;
+  LinearInterpolator lin;
+  unsigned copies;
+  bool flipOdd;
+public:
+  ProgramRepeater (LightProgram* p, unsigned l, unsigned c): lin(p, l, N/c), copies(c), flipOdd(true) {}
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+unsigned ProgramRepeater<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  unsigned ledsPerCopy = N / copies;
+  unsigned program_number = x / ledsPerCopy;
+  unsigned pixel_number = x % ledsPerCopy;
+  if (flipOdd && (program_number & 0x1)) {
+    lin.setFlip(true);
+  } else {
+    lin.setFlip(false);
+  }
+  return lin.pixel(pixel_number, id, beat, beatpos, hfc, spectrum);
+}
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+class ColorShifter : public LightProgram {
+private:
+  LightProgram *p1;
+public:
+  ColorShifter (LightProgram* p): p1(p) {}
+  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
+};
+
+template <unsigned N>
+unsigned ColorShifter<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  Color c(p1->pixel(x, id, beat, beatpos, hfc, spectrum));
+  
+  // pulse with hfc
+  /*
+  c.hsvRepresentation();
+  hfc >>= 16;
+  hfc = log2_fp(hfc);
+  c.x1 += hfc / 100;
+  c.x1 = c.x1 % 1536;
+  return c.rgbPack();
+  */
+
+  // pulse with beat
+  /*
+  c.hsvRepresentation();
+  unsigned quarterCounter = beat % 4;
+  c.x3 += (1024*quarterCounter + beatpos) / 400;
+  return c.rgbPack();
+  */
+
+  // saturate with hfc
+  /*
+  c.hsvRepresentation();
+  //hfc >>= 16;
+  //hfc = log2_fp(hfc);
+  c.x2 += hfc / 300000;
+  c.x2 &= 0xFF;
+  return c.rgbPack();
+  */
+
+  // rotate with beat
+  c.hsvRepresentation();
+  unsigned quarterCounter = beat % 8;
+  c.x1 += (1024*quarterCounter + beatpos) * 1536 / 8192;
+  c.x1 = c.x1 % 1536;
+  return c.rgbPack();
+}
 
 //------------------------------------------------------------------------------
 /*
@@ -74,22 +344,6 @@ public:
    unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
 };
 */
-
-//------------------------------------------------------------------------------
-class ColorScale {
-public:
-  static const unsigned max = (1 << 16);
-  // returns a color given a number between 1 and 2^16
-  virtual unsigned color (unsigned x) = 0;
-};
-
-//------------------------------------------------------------------------------
-class ColorScaleProgram : public LightProgram {
-public:
-  ColorScale* cs;
-  ColorScaleProgram (ColorScale* c): cs(c) {}
-  unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
-};
 
 
 const unsigned cubehelix[] = {
@@ -120,6 +374,34 @@ class CubeHelixScale : public ColorScale {
 public:
   unsigned color (unsigned x);
 };
+
+//------------------------------------------------------------------------------
+template <unsigned N>
+unsigned SpectrumProgram<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+  unsigned power = si.pixel(spectrum, x, N-1);
+  power &= 0xFF; // make sure we saturate at 255
+  return cubehelix2[power];
+}
+
+/*
+//------------------------------------------------------------------------------
+
+unsigned BufferProgram::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
+   if (id != currentid) {
+      currentid = id;
+      for (unsigned i=0; i<ledsPerStrip; ++i) {
+         buffer[i] = p->pixel(x, id, beat, beatpos, hfc, spectrum);
+      }
+   }
+   return buffer[x];
+}
+
+
+//------------------------------------------------------------------------------
+unsigned CubeHelixScale::color (unsigned x) {
+  return cubehelix2[x * 256 / ColorScale::max];
+}
+*/
 
 
 #endif

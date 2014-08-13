@@ -10,6 +10,8 @@
 #include "BeatTracker.h"
 #include "esProfiler.h"
 #include "LightProgram.h"
+#include "LEDRing.h"
+#include "ColorUtils.h"
 
 
 //------------------------------------------------------------------------------
@@ -42,7 +44,9 @@ AudioControlSGTL5000 audioShield;
 
 //------------------------------------------------------------------------------
 // WS2811 constants
-const int ledsPerStrip = 240;
+const int ledsPerStrip = 210;
+const int nStrips = 3;
+const int nLeds = 630;
 DMAMEM int displayMemory[ledsPerStrip*6];
 int drawingMemory[ledsPerStrip*6];
 const int config = WS2811_GRB | WS2811_800kHz;
@@ -77,51 +81,6 @@ int cscaleCubeHelix (int x) {
   return cubehelix2[x];
 }
 
-
-//------------------------------------------------------------------------------
-void colorChange (int color) {
-  for (int i=0; i<leds.numPixels(); ++i) {
-    leds.setPixel(i, color);
-  }
-  leds.show();
-}
-
-//------------------------------------------------------------------------------
-void showColorScale (OctoWS2811& leds, int (*cs)(int), unsigned number = ledsPerStrip) {
-  for (unsigned i=0; i<number; ++i) {
-    int color = (*cs)(i*ledsPerStrip/255);
-    leds.setPixel(i, color);
-    leds.setPixel(i+ledsPerStrip, color);
-    leds.setPixel(i+2*ledsPerStrip, color);
-  }
-  for (unsigned i=number; i<ledsPerStrip; ++i) {
-    leds.setPixel(i, 0x000000);
-    leds.setPixel(i+ledsPerStrip, 0x000000);
-    leds.setPixel(i+2*ledsPerStrip, 0x000000);
-  }
-  leds.show();
-}
-
-//------------------------------------------------------------------------------
-void lanterns () {
-  static unsigned lanternYellow = 0xFF6000;
-  for (unsigned i=0; i<ledsPerStrip; ++i) {
-    leds.setPixel(i, 0x000000);
-    leds.setPixel(i+ledsPerStrip, 0x000000);
-    leds.setPixel(i+2*ledsPerStrip, 0x000000);
-  }
-  for (unsigned i=0; i<ledsPerStrip; i+=ledsPerStrip/8) {
-    for (unsigned j=i-3; j<ledsPerStrip and j<i+3; ++j) {
-      leds.setPixel(j, lanternYellow);
-      //leds.setPixel(j+ledsPerStrip, lanternYellow);
-      //leds.setPixel(j+2*ledsPerStrip, lanternYellow);
-    }
-  }
-  leds.show();
-}
-
-
-
 //------------------------------------------------------------------------------
 //RingBufferWithMedian<int, 64> hfcBuffer;
 const unsigned hfcWindow = 512;
@@ -134,31 +93,24 @@ unsigned newBeat = 0;
 unsigned beatPos = 0;
 
 //------------------------------------------------------------------------------
+LEDRing< BeatTracker<hfcWindow, samplesPerHFC, HFCPerBeatHypothesis>, ledsPerStrip, nLeds > ledring(&leds, &myHFC, &tracker);
+
+//------------------------------------------------------------------------------
 CubeHelixScale cubehelixScale;
 
 //------------------------------------------------------------------------------
-Spectrum spectrumProgram;
-ColorScaleProgram cubehelixProgram(&cubehelixScale);
-//VUMeter vumeterProgram(&cubehelixProgram);
-VUMeter vumeterProgram(&spectrumProgram);
-AffineTransformationProgram affineProgram(&vumeterProgram, 100, 1, 1);
-ProgramRepeater doublevuProgram(2, &vumeterProgram);
+Solid<nLeds> solid1(0x090400);
+Lanterns<nLeds> lanterns1(0x010000, 0xFF6000, 8, 6);
+SpectrumProgram<nLeds> spectrum1;
+SpectrumProgram<nLeds/16> spectrum2;
 
+ColorShifter<nLeds> shifter1(&solid1);
+VUMeter<nLeds> vu1(&shifter1);
+VUMeter<nLeds/16> vu2(&spectrum2);
 
-//------------------------------------------------------------------------------
-void runProgram (LightProgram* program) {
-  static unsigned id = 0;
-  unsigned value, beat, beatpos;
-  tracker.currentPosition(myHFC.sampleNumber, beat, beatpos);
-  for (unsigned i=0; i<ledsPerStrip; ++i) {
-    value = program->pixel(i, id, beat, beatpos, (unsigned)myHFC.rawHFC.mean(), myHFC.output);
-    leds.setPixel(i, value);
-    leds.setPixel(i+ledsPerStrip, value);
-    leds.setPixel(i+2*ledsPerStrip, value);
-  }
-  ++id;
-  leds.show();
-}
+RotateProgram<nLeds> rotate1(&lanterns1, nLeds-3);
+LinearInterpolator interpolate1(&vu1, nLeds, nLeds/2);
+ProgramRepeater<nLeds> doublevu(&vu2, nLeds/16, 16);
 
 
 //------------------------------------------------------------------------------
@@ -170,15 +122,27 @@ void setup() {
   // Enable the audio shield and set the output volume.
   audioShield.enable();
   audioShield.inputSelect(myInput);
-  audioShield.volume(0.7);
+  audioShield.volume(0.3);
 
-  leds.begin();
-  leds.show();
+  ledring.setup();
 
   profiler.resetStartTime();
   Serial.print("Starting system...");
   Serial.println();
 }
+
+void printColor (unsigned color) {
+    unsigned r, g, b;
+    splitComponents(color, r, g, b);
+    Serial.print("x1: ");
+    Serial.print(r);
+    Serial.print(", x2: ");
+    Serial.print(g);
+    Serial.print(", x3: ");
+    Serial.print(b);
+    Serial.println();
+}
+
 
 //------------------------------------------------------------------------------
 void loop() {
@@ -206,7 +170,6 @@ void loop() {
     tracker.addBeatHypothesis(extractor.beat);
     profiler.finish(trackerAddHypothesis);
 
-    // Print stuff
     /*
     profiler.call(printing);
     Serial.print("state: ");
@@ -236,7 +199,8 @@ void loop() {
     */
   }
 
-  /*profiler.call(lightsync);
+  profiler.call(lightsync);
+  /*
   if (tracker.state < 2) {
     lastBeat = newBeat;
     tracker.currentPosition(myHFC.sampleNumber, newBeat, beatPos);
@@ -258,13 +222,15 @@ void loop() {
   Serial.println();
   */
 
-  profiler.call(lightsync);
-  //runProgram(reinterpret_cast<LightProgram*>(&spectrumProgram));
-  //runProgram(&spectrumProgram);
-  //runProgram(&vumeterProgram);
-  runProgram(&doublevuProgram);
-  //runProgram(&affineProgram);
-  //runProgram(&cubehelixProgram);
+  //ledring.runProgram(&solid1);
+  //ledring.runProgram(&lanterns1);
+  //ledring.runProgram(&rotate1);
+  //ledring.runProgram(&spectrum1);
+  ledring.runProgram(&vu1);
+  //ledring.runProgram(&interpolate1);
+  //ledring.runProgram(&doublevu);
+  //ledring.runProgram(&shifter1);
+
   profiler.finish(lightsync);
 
 
@@ -277,12 +243,6 @@ void loop() {
     colorChange(colors[color]);
   }
   */
-  //profiler.call(colorchange);
-  //spectroColors(myHFC.output);
-  //vumeter.draw(leds);
-  //colorChange(0x212504);
-  //showColorScale(leds, &cscaleCubeHelix);
-  //lanterns();
   //profiler.finish(colorchange);
 }
 

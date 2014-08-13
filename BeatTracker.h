@@ -171,11 +171,13 @@ unsigned BeatTracker<SPH, HPB, M>::hypothesesAreConsistent (BeatHypothesis const
     samplediff = bh2.samplesPerBeat - samplediff;
     ++beatdiff;
   }
+  /*
   Serial.print("testing consistency. beat diff: ");
   Serial.print(beatdiff);
   Serial.print(", sample diff: ");
   Serial.print(samplediff);
   Serial.println();
+  */
   //std::cout << "Hypothesis difference is " << beatdiff << " beats and " << samplediff << " samples\n";
   // if the samplediff is less than 1/4th of a bh1 pulse, we consider the hypotheses aligned
   return ((samplediff <= (bh2.samplesPerBeat / 4)) ? beatdiff : 0);

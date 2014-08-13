@@ -23,6 +23,9 @@
 
 #include <Arduino.h>
 
+#ifndef ESOCTOWS2811
+#define ESOCTOWS2811
+
 #define WS2811_RGB	0	// The WS2811 datasheet documents this way
 #define WS2811_RBG	1
 #define WS2811_GRB	2	// Most LED strips are wired this way
@@ -60,4 +63,6 @@ private:
 	static void *drawBuffer;
 	static uint8_t params;
 };
+
+#endif
 
