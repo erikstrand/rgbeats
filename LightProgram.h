@@ -55,9 +55,10 @@ inline unsigned interpolateColor (unsigned c1, unsigned c2, unsigned diff, unsig
 //------------------------------------------------------------------------------
 class SpectrumInterpolator {
 public:
-  static const unsigned spectrumMax = 511;
+  static const unsigned spectrumMax = 511; // last bin in FFT output
 public:
   SpectrumInterpolator () {}
+  // outMax is largest pixel value we'll ask for
   inline unsigned pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax);
 };
 
@@ -175,8 +176,6 @@ public:
 template <unsigned N>
 class VUMeter : public LightProgram {
 public:
-  //static const int scale = 3000000;
-  static const int scale = 30000;
   LightProgram* p1;
   VUMeter (LightProgram* p): p1(p) {}
   inline void pixel (unsigned x, MusicState const& state, Color& color);
@@ -184,10 +183,7 @@ public:
 
 template <unsigned N>
 void VUMeter<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  unsigned hfc = state.hfc;
-  hfc >>= 16;
-  hfc = log2_fp(hfc);
-  unsigned max = hfc * N / scale;
+  unsigned max = state.hfcLin(N);
   if (max >= N) { max = N; }
   if (x <= max) {
     p1->pixel(x, state, color);
@@ -294,8 +290,9 @@ template <unsigned N>
 class ColorShifter : public LightProgram {
 private:
   LightProgram *p1;
+  unsigned lastShift;
 public:
-  ColorShifter (LightProgram* p): p1(p) {}
+  ColorShifter (LightProgram* p): p1(p), lastShift(0) {}
   void pixel (unsigned x, MusicState const& state, Color& color);
 };
 
@@ -306,18 +303,26 @@ void ColorShifter<N>::pixel (unsigned x, MusicState const& state, Color& color) 
   // pulse with hfc
   /*
   color.hsvRepresentation();
-  unsigned hfc = state.hfc;
-  hfc >>= 16;
-  hfc = log2_fp(hfc);
-  color.x1 += hfc / 30;
-  color.x1 = color.x1 % 1536;
+  unsigned colorAdd = state.onsetSaw();
+  color.x1 += colorAdd;
+  color.x1 %= 1536;
   */
 
   // pulse with onsets
   if (state.samplesSinceOnset < 15) {
     color.hsvRepresentation();
-    //color.x1 = 0;
-    color.x3 += static_cast<unsigned>(state.onsetSignificance*5 - (state.onsetSignificance*5/15)*state.samplesSinceOnset);
+    color.x3 += state.onsetSaw(25, 15);
+    unsigned newshift = state.onsetSaw(512, 40);
+    if (lastShift > 5) {
+      lastShift -= 5;
+    } else {
+      lastShift = 0;
+    }
+    if (newshift > lastShift) {
+      lastShift = state.onsetSaw(512, 50);
+    }
+    color.x1 += lastShift;
+    color.x1 %= 1536;
   }
 
   // pulse with beat

@@ -101,9 +101,9 @@ CubeHelixScale cubehelixScale;
 //------------------------------------------------------------------------------
 Solid<nLeds> solid1(0x000409);
 Solid<nLeds> solidGlow(0xF06000);
+//Solid<nLeds> solidGlow(0x5000C0);
 Solid<nLeds> solidBlack(0x000000);
 Flicker flicker(&solidGlow);
-Lanterns<nLeds> lanterns1(&flicker, &solidBlack, 8, 6);
 SpectrumProgram<nLeds> spectrum1;
 SpectrumProgram<nLeds/16> spectrum2;
 
@@ -111,9 +111,10 @@ ColorShifter<nLeds> shifter1(&solid1);
 VUMeter<nLeds> vu1(&shifter1);
 VUMeter<nLeds/16> vu2(&spectrum2);
 
-RotateProgram<nLeds> rotate1(&lanterns1, nLeds-3);
 LinearInterpolator interpolate1(&vu1, nLeds, nLeds/2);
-ProgramRepeater<nLeds> doublevu(&vu2, nLeds/16, 16);
+ProgramRepeater<nLeds> doublevu(&vu1, nLeds/16, 16);
+Lanterns<nLeds> lanterns1(&flicker, &doublevu, 8, 6);
+RotateProgram<nLeds> rotate1(&lanterns1, nLeds-3);
 
 
 //------------------------------------------------------------------------------
@@ -188,7 +189,7 @@ void loop() {
     Serial.print(tracker.tempoGuess());
     Serial.println();
     */
-    profiler.printStats();
+    //profiler.printStats();
     /*
     Serial.print("audio sample: ");
     Serial.print(windowEndSample);
@@ -226,10 +227,10 @@ void loop() {
   */
 
   //ledring.runProgram(&solid1);
-  //ledring.runProgram(&lanterns1);
+  ledring.runProgram(&lanterns1);
   //ledring.runProgram(&rotate1);
   //ledring.runProgram(&spectrum1);
-  ledring.runProgram(&vu1);
+  //ledring.runProgram(&vu1);
   //ledring.runProgram(&interpolate1);
   //ledring.runProgram(&doublevu);
   //ledring.runProgram(&shifter1);

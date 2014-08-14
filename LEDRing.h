@@ -59,8 +59,10 @@ template <typename TRACKER, unsigned LPS, unsigned N>
 void LEDRing<TRACKER, LPS, N>::runProgram (LightProgram* program) {
   tracker->currentPosition(myHFC->sampleNumber, state.beat, state.beatpos);
   state.hfc = (unsigned)(myHFC->rawHFC.mean());
+  //Serial.println(state.hfc);
   state.samplesSinceOnset = myHFC->samplesSinceLastOnset;
   state.onsetSignificance = myHFC->lastOnsetSignificance;
+  state.maxSignificance = myHFC->lastOnsetMaxSignificance;
   Color c;
   for (unsigned i=0; i<N; ++i) {
     program->pixel(i, state, c);

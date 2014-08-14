@@ -120,6 +120,19 @@ void AudioAnalyzeHfcOnset::update(void)
       copy_to_fft_buffer(buffer+0x500, blocklist[5]->data);
       copy_to_fft_buffer(buffer+0x600, blocklist[6]->data);
       copy_to_fft_buffer(buffer+0x700, blocklist[7]->data);
+      /*
+      // This code can be used to find max and min - helpful for adjusting levels;
+      int16_t max = 0;
+      int16_t min = 0;
+      int16_t temp;
+      for (unsigned i=0; i<1024; ++i) {
+        temp = buffer[2*i];
+        if (temp > max) { max = temp; }
+        if (temp < min) { min = temp; }
+      }
+      Serial.print("max: "); Serial.println(max);
+      Serial.print("min: "); Serial.println(min);
+      */
       if (window) apply_window_to_fft_buffer(buffer, window);
       arm_cfft_radix4_q15(&fft_inst, buffer);
       profiler.finish(analyzefft);
@@ -127,49 +140,62 @@ void AudioAnalyzeHfcOnset::update(void)
       // calculate power spectrum and HFC
       profiler.call(hfccalculation);
       int32_t hfc = 0;
+      //uint32_t max = 0;
       for (int i=0; i < 512; i++) {
         uint32_t tmp = *((uint32_t *)buffer + i); // real & imag
         uint32_t magsq = multiply_16tx16t_add_16bx16b(tmp, tmp);
         uint32_t mag = sqrt_uint32_approx(magsq);
+        //if (mag > max) { max = mag; }
         output[i] = static_cast<uint16_t>(mag);
         // We use a measure halfway between raw summed power and true HFC.
-        hfc += (512+i)*static_cast<int32_t>(mag);
+        //hfc += (512+i)*static_cast<int32_t>(mag);
+        hfc += i*static_cast<int32_t>(mag);
+        //hfc += 512*static_cast<int32_t>(mag);
+        //hfc += (1024-i)*static_cast<int32_t>(mag);
       }
+      //Serial.print("max: "); Serial.println(max);
       profiler.finish(hfccalculation);
 
       // Add HFC samples to buffers
       profiler.call(bufferAddSample);
       rawHFC.addSample(hfc);
+      //Serial.println(rawHFC.max());
       profiler.finish(bufferAddSample);
 
-      // Determine if this HFC sample is an onset
+      // Normalize hfc sample and determine if it is an onset
       profiler.call(onsetDetection);
       int32_t median = rawHFC.median();
       int32_t sdev = rawHFC.stddeviation();
-      int32_t hfc2 = hfc - median;
-      int32_t stddevs = hfc2 / sdev;
-      int32_t hfc3 = hfc2 - sdev;
-      if (samplesSinceLastOnset > refractorySamples and stddevs >= 2) {
-        samplesSinceLastOnset = 0;
-        lastOnsetSignificance = stddevs;
+      hfc -= median;
+      int32_t stddevs = hfc / sdev;
+      if (samplesSinceLastOnset > refractorySamples) {
+        if (stddevs >= 2) {
+          samplesSinceLastOnset = 0;
+          lastOnsetSignificance = stddevs;
+          lastOnsetMaxSignificance = stddevs;
+        }
       } else {
+        if (stddevs > lastOnsetMaxSignificance) {
+          lastOnsetMaxSignificance = stddevs;
+        }
         ++samplesSinceLastOnset;
       }
+      
       profiler.finish(onsetDetection);
 
       // Prepare smoothed HFC sample
       // Need to downscale to fit HFC samples in int16's.
       // From some dubstep tests, this scale leads to rare saturation.
-      //hfc2 /= 128;
-      hfc2 /= 2048;
-      int16_t smallhfc2;
-      if (hfc2 >= 0x8000) {
+      hfc /= 128;
+      int16_t smallhfc;
+      if (hfc >= 0x8000) {
         Serial.println("Smoothed HFC saturation");
-        smallhfc2 = INT16_MAX;
+        smallhfc = INT16_MAX;
       } else {
-        smallhfc2 = static_cast<int16_t>(hfc2);
+        smallhfc = static_cast<int16_t>(hfc);
       }
-      unsigned hfcNumber = smoothedHFC.addSample(static_cast<int16_t>(smallhfc2));
+      //Serial.println(smallhfc);
+      unsigned hfcNumber = smoothedHFC.addSample(static_cast<int16_t>(smallhfc));
 
       /*
       Serial.print(newSampleNumber);
@@ -180,7 +206,7 @@ void AudioAnalyzeHfcOnset::update(void)
       Serial.print(" - ");
       Serial.print(median);
       Serial.print(" => ");
-      Serial.print(smallhfc2);
+      Serial.print(smallhfc);
       Serial.print(", stddev: ");
       Serial.print(sdev);
       Serial.print(", since onset: ");

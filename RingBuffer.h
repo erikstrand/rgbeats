@@ -37,6 +37,11 @@ public:
   inline T newestSample () const { return buffer[index]; }
   void copySamples (Complex<T>* dst, unsigned n, unsigned end) const;
   inline void copySamples (Complex<T>* dst, unsigned n) const;
+
+/*
+  inline T max () { arm_std_q31(rbuffer.buffer, N, &sigma); return sigma; }
+  inline T max () { arm_std_q31(rbuffer.buffer, N, &sigma); return sigma; }
+  */
 };
 
 template <typename T, unsigned N>
@@ -89,6 +94,12 @@ public:
   inline T mean () const { return sum/N; }
   //inline T variance () const { return sumsquare - sum*sum; }
   inline T stddeviation () { arm_std_q31(rbuffer.buffer, N, &sigma); return sigma; }
+  inline T max () {
+    T max;
+    uint32_t maxindex;
+    arm_max_q31(rbuffer.buffer, N, &max, &maxindex);
+    return max;
+  }
 };
 
 template <typename T, unsigned N>

@@ -69,6 +69,7 @@ public:
   unsigned hfcWindowEndSample;
   volatile unsigned samplesSinceLastOnset;
   volatile unsigned lastOnsetSignificance;
+  volatile unsigned lastOnsetMaxSignificance;
 
 public:
   AudioAnalyzeHfcOnset(uint8_t navg = 1, const int16_t *win = AudioWindowHanning1024):
@@ -79,7 +80,8 @@ public:
     sampleNumber(0),
     hfcWindowEnd(0),
     samplesSinceLastOnset(refractorySamples+1),
-    lastOnsetSignificance(0)
+    lastOnsetSignificance(0),
+    lastOnsetMaxSignificance(0)
   {
     init();
   }

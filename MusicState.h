@@ -20,11 +20,28 @@ public:
   unsigned id;      // simply an incrementing counter
   unsigned hfc;     // HFC content (averaged over some number of windows)
   unsigned samplesSinceOnset; // 0 means this moment is an onset
-  unsigned onsetSignificance; // number of standard deviations above the mean
+  unsigned onsetSignificance; // number of standard deviations above the mean at beginning of onset
+  unsigned maxSignificance;   // max standard deviations above the mean during onset
   unsigned beat;    // number of the beat in the curent beat train
   unsigned beatpos; // beat subposition in [0, 1024)
 public:
+  // random number based on spectral information
   unsigned random () const;
+  // linearly scaled version of hfc signal
+  unsigned hfcLin (unsigned scale) const;
+  // logarithmically scaled version of hfc signal
+  unsigned hfcLog (unsigned scale, unsigned noise_floor = 1150) const;
+  // sawtooth wave that rises abruptly at onsets, and decays linearly
+  unsigned onsetSaw (unsigned scale, unsigned decay, bool useMaxSignificance = false) const;
 };
 
+
+//==============================================================================
+// Log2
+//==============================================================================
+
+//------------------------------------------------------------------------------
+uint16_t log2_fp (uint16_t x_16t);
+
 #endif
+

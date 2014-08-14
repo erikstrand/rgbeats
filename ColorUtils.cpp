@@ -187,34 +187,3 @@ void Color::rgbComponents (unsigned& r, unsigned& g, unsigned& b) const {
   b += m;
 }
 
-//------------------------------------------------------------------------------
-uint16_t log2_fp (uint16_t x_16t) {
-  if (x_16t == 0) { return 0; }
-  unsigned y;
-  unsigned b = 1 << 27; // 1/2 in Q28
-  unsigned c = 0;
-
-  // Compute the characteristic (integral part of log2(x)).
-  // This also determines the fixed point format we use to store x.
-  uint32_t x = x_16t;
-  while (x_16t >= 2) {
-    x_16t >>= 1;
-    ++c;
-  }
-  y = c << 28;
-  
-  // Calculate 8 binary fractional digits of log2(x).
-  unsigned threshold = 2 << c; // 2 in Q[c]
-  for (unsigned i=0; i<16; ++i) {
-    x *= x;
-    x >>= c; // return x to Q[c].
-    if (x >= threshold) {
-      x >>= 1;
-      y |= b;
-    }
-    b >>= 1;
-  }
-
-  return y >> 16;
-}
-
