@@ -88,7 +88,10 @@ unsigned SpectrumInterpolator::pixel (volatile uint16_t const* spectrum, unsigne
 // virtual base class for light programs
 class LightProgram {
 public:
+  // renders a single pixel
   virtual void pixel (unsigned x, MusicState const& state, Color& color) = 0;
+  // used to consistently but randomly set internal parameters
+  virtual void init (XorShift32& rand) {};
 };
 
 //------------------------------------------------------------------------------
@@ -98,6 +101,12 @@ public:
   // returns a color given a number between 1 and 2^16
   virtual unsigned color (unsigned x) = 0;
 };
+
+
+//==============================================================================
+// Sources
+//==============================================================================
+
 
 //------------------------------------------------------------------------------
 template <unsigned N>
@@ -155,7 +164,7 @@ public:
 
 template <unsigned N>
 void Lanterns<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  if (x % separation < width) {
+  if ((x + width / 2) % separation < width) {
     p1->pixel(x, state, color);
   } else {
     p2->pixel(x, state, color);
@@ -290,14 +299,20 @@ template <unsigned N>
 class ColorShifter : public LightProgram {
 private:
   LightProgram *p1;
-  unsigned lastShift;
+  SawDecay sd1;
+  unsigned sample;
 public:
-  ColorShifter (LightProgram* p): p1(p), lastShift(0) {}
+  ColorShifter (LightProgram* p): p1(p), sd1(5, 2), sample(0) {}
   void pixel (unsigned x, MusicState const& state, Color& color);
 };
 
 template <unsigned N>
 void ColorShifter<N>::pixel (unsigned x, MusicState const& state, Color& color) {
+  if (state.sample != sample) {
+    sample = state.sample;
+    sd1.update(state.sample, state.onsetSaw(1024, 10));
+    //Serial.println(sd1.height());
+  }
   p1->pixel(x, state, color);
   
   // pulse with hfc
@@ -309,21 +324,14 @@ void ColorShifter<N>::pixel (unsigned x, MusicState const& state, Color& color) 
   */
 
   // pulse with onsets
+  color.hsvRepresentation();
   if (state.samplesSinceOnset < 15) {
-    color.hsvRepresentation();
     color.x3 += state.onsetSaw(25, 15);
-    unsigned newshift = state.onsetSaw(512, 40);
-    if (lastShift > 5) {
-      lastShift -= 5;
-    } else {
-      lastShift = 0;
-    }
-    if (newshift > lastShift) {
-      lastShift = state.onsetSaw(512, 50);
-    }
-    color.x1 += lastShift;
-    color.x1 %= 1536;
   }
+  int oldx1 = color.x1;
+  color.x1 += sd1.height();
+  color.x1 %= 1536;
+  //if (x == 10) { Serial.print(oldx1); Serial.print(" + "); Serial.print(sd1.height()); Serial.print(" --> "); Serial.print(color.x1); Serial.print(" at "); Serial.println(state.sample); }
 
   // pulse with beat
   /*
@@ -352,32 +360,22 @@ void ColorShifter<N>::pixel (unsigned x, MusicState const& state, Color& color) 
 }
 
 //------------------------------------------------------------------------------
+template <unsigned N>
 class Flicker : public LightProgram {
 public:
   LightProgram* p1;
-  int a[8];
+  FlickerFeature<N> randomwalk;
 public:
-  Flicker (LightProgram* p): p1(p) { for (unsigned i=0; i<8; ++i) { a[i] = 0; } }
+  Flicker (LightProgram* p): p1(p) {}
   inline void pixel (unsigned x, MusicState const& state, Color& color);
 };
 
-void Flicker::pixel (unsigned x, MusicState const& state, Color& color) {
+template <unsigned N>
+void Flicker<N>::pixel (unsigned x, MusicState const& state, Color& color) {
+  randomwalk.update(state);
   p1->pixel(x, state, color);
   color.hsvRepresentation();
-  unsigned r = state.random();
-  a[0] = (r & 0x10) ? (r & 0x7F) : -(r & 0x7F);
-  int shift = 0;
-  for (unsigned i=0; i<8; ++i) {
-    shift += a[i];
-  }
-  shift /= 8;
-  int newv = static_cast<int>(color.x3) + shift;
-  if (newv < 0) { color.x3 = 0; }
-  else if (newv > 255) { color.x3 = 255; }
-  else { color.x3 = static_cast<unsigned>(newv); }
-  for (unsigned i=1; i<8; ++i) {
-    a[i] = a[i-1];
-  }
+  color.x3 = Color::addSaturate(color.x3, randomwalk.height(x));
 }
 
 

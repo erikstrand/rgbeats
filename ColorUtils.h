@@ -9,43 +9,43 @@
 #include <stdint.h>
 
 //------------------------------------------------------------------------------
-inline void splitComponents (unsigned color, unsigned& r, unsigned& g, unsigned& b) {
-  r = color >> 16;
-  g = (color >> 8) & 0xFF;
-  b = color & 0xFF;
+inline unsigned packColor (unsigned c1, unsigned c2, unsigned c3) {
+  return (c1 << 16) | (c2 << 8) | c3;
 }
 
 //------------------------------------------------------------------------------
-inline unsigned combineComponents (unsigned r, unsigned g, unsigned b) {
-  return (r << 16) | (g << 8) | b;
+inline void unpackColor (unsigned color, int& r, int& g, int& b) {
+  r = static_cast<int>((color >> 16) & 0xFF);
+  g = static_cast<int>((color >> 8) & 0xFF);
+  b = static_cast<int>(color & 0xFF);
 }
- 
+
 //------------------------------------------------------------------------------
 class Color {
 public:
-  unsigned x1;
-  unsigned x2;
-  unsigned x3;
+  int x1;
+  int x2;
+  int x3;
   bool hsv;
 public: 
   Color (): x1(0), x2(0), x3(0), hsv(false) {}
-  Color (unsigned c): x1(c >> 16), x2((c >> 8) & 0xFF), x3(c & 0xFF), hsv(false) {}
-  Color (unsigned r, unsigned g, unsigned b): x1(r&0xFF), x2(g&0xFF), x3(b&0xFF), hsv(false) {}
+  Color (unsigned c): hsv(false) { unpackColor(c, x1, x2, x3); }
+  Color (int r, int g, int b): x1(r), x2(g), x3(b), hsv(false) {}
   inline unsigned pack () const;
   inline unsigned rgbPack () const;
   inline unsigned hsvPack () const;
   inline void rgbRepresentation ();
   inline void hsvRepresentation ();
   inline Color& operator= (Color const& c) { x1 = c.x1; x2 = c.x2; x3 = c.x3; hsv = c.hsv; return *this; }
+  inline static int addSaturate (int a, int b) { int c = a + b; if (c > 255) { c = 255; } else if (c < 0) { c = 0; } return c; }
 private:
-  inline static unsigned packComponents (unsigned c1, unsigned c2, unsigned c3);
-  void rgbComponents (unsigned& r, unsigned& g, unsigned& b) const;
-  void hsvComponents (unsigned& r, unsigned& g, unsigned& b) const;
+  void rgbComponents (int& r, int& g, int& b) const;
+  void hsvComponents (int& r, int& g, int& b) const;
 };
 
 //------------------------------------------------------------------------------
 unsigned Color::pack () const {
-  return packComponents(x1, x2, x3);
+  return packColor(x1, x2, x3);
 }
 
 //------------------------------------------------------------------------------
@@ -53,9 +53,9 @@ unsigned Color::rgbPack () const {
   if (hsv == false) {
     return pack();
   } else {
-    unsigned r, g, b;
+    int r, g, b;
     rgbComponents(r, g, b);
-    return packComponents(r, g, b);
+    return packColor(r, g, b);
   }
 }
 
@@ -64,21 +64,16 @@ unsigned Color::hsvPack () const {
   if (hsv == true) {
     return pack();
   } else {
-    unsigned h, s, v;
+    int h, s, v;
     hsvComponents(h, s, v);
-    return packComponents(h, s, v);
+    return packColor(h, s, v);
   }
-}
-
-//------------------------------------------------------------------------------
-unsigned Color::packComponents (unsigned c1, unsigned c2, unsigned c3) {
-  return (c1 << 16) | (c2 << 8) | c3;
 }
 
 //------------------------------------------------------------------------------
 void Color::rgbRepresentation () {
   if (hsv == false) { return; }
-  unsigned r, g, b;
+  int r, g, b;
   rgbComponents(r, g, b);
   x1 = r;
   x2 = g;
@@ -89,7 +84,7 @@ void Color::rgbRepresentation () {
 //------------------------------------------------------------------------------
 void Color::hsvRepresentation () {
   if (hsv == true) { return; }
-  unsigned h, s, v;
+  int h, s, v;
   hsvComponents(h, s, v);
   x1 = h;
   x2 = s;

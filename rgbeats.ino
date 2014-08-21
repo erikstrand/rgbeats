@@ -44,9 +44,9 @@ AudioControlSGTL5000 audioShield;
 
 //------------------------------------------------------------------------------
 // WS2811 constants
-const int ledsPerStrip = 210;
-const int nStrips = 3;
-const int nLeds = 630;
+const int ledsPerStrip = 200;
+const int nStrips = 4;
+const int nLeds = 800;
 DMAMEM int displayMemory[ledsPerStrip*6];
 int drawingMemory[ledsPerStrip*6];
 const int config = WS2811_GRB | WS2811_800kHz;
@@ -100,20 +100,21 @@ CubeHelixScale cubehelixScale;
 
 //------------------------------------------------------------------------------
 Solid<nLeds> solid1(0x000409);
-Solid<nLeds> solidGlow(0xF06000);
+//Solid<nLeds> solidGlow(0xA02000);
+Solid<nLeds> solidGlow(0x150050);
 //Solid<nLeds> solidGlow(0x5000C0);
 Solid<nLeds> solidBlack(0x000000);
-Flicker flicker(&solidGlow);
+Flicker<nLeds> flicker(&solidGlow);
 SpectrumProgram<nLeds> spectrum1;
 SpectrumProgram<nLeds/16> spectrum2;
 
-ColorShifter<nLeds> shifter1(&solid1);
+ColorShifter<nLeds> shifter1(&spectrum2);
 VUMeter<nLeds> vu1(&shifter1);
 VUMeter<nLeds/16> vu2(&spectrum2);
 
 LinearInterpolator interpolate1(&vu1, nLeds, nLeds/2);
 ProgramRepeater<nLeds> doublevu(&vu1, nLeds/16, 16);
-Lanterns<nLeds> lanterns1(&flicker, &doublevu, 8, 6);
+Lanterns<nLeds> lanterns1(&flicker, &solidBlack, 8, 6);
 RotateProgram<nLeds> rotate1(&lanterns1, nLeds-3);
 
 
@@ -133,11 +134,13 @@ void setup() {
   profiler.resetStartTime();
   Serial.print("Starting system...");
   Serial.println();
+
+  pinMode(0, INPUT_PULLUP); // Mode switch
 }
 
 void printColor (unsigned color) {
-    unsigned r, g, b;
-    splitComponents(color, r, g, b);
+    int r, g, b;
+    unpackColor(color, r, g, b);
     Serial.print("x1: ");
     Serial.print(r);
     Serial.print(", x2: ");
@@ -173,6 +176,14 @@ void loop() {
     profiler.call(trackerAddHypothesis);
     tracker.addBeatHypothesis(extractor.beat);
     profiler.finish(trackerAddHypothesis);
+
+    // Test switch
+    if (digitalRead(0) == HIGH) {
+      // Lanterns
+      Serial.println("Lanterns mode");
+    } else {
+      Serial.println("Beats mode");
+    }
 
     /*
     profiler.call(printing);
@@ -227,6 +238,7 @@ void loop() {
   */
 
   //ledring.runProgram(&solid1);
+  //ledring.runProgram(&flicker);
   ledring.runProgram(&lanterns1);
   //ledring.runProgram(&rotate1);
   //ledring.runProgram(&spectrum1);

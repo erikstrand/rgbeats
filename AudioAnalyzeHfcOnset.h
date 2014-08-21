@@ -79,6 +79,7 @@ public:
     outputflag(false),
     sampleNumber(0),
     hfcWindowEnd(0),
+    hfcWindowEndSample(0),
     samplesSinceLastOnset(refractorySamples+1),
     lastOnsetSignificance(0),
     lastOnsetMaxSignificance(0)
@@ -95,6 +96,7 @@ public:
     return false;
   }
   virtual void update(void);
+  inline unsigned currentHFCSample () const { return rawHFC.rbuffer.counter; }
 
 };
 

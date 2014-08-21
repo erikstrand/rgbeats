@@ -34,7 +34,7 @@ template <typename TRACKER, unsigned LPS, unsigned N>
 LEDRing<TRACKER, LPS, N>::LEDRing (OctoWS2811* leds, AudioAnalyzeHfcOnset* hfc, TRACKER* tracker)
 : leds(leds), myHFC(hfc), tracker(tracker), state()
 {
-  state.id = 0;
+  state.rand.setState(0xdefa017, 0xce3d);
   state.spectrum = myHFC->output;
 }
 
@@ -57,6 +57,7 @@ void LEDRing<TRACKER, LPS, N>::setPixel (unsigned n, unsigned color) {
 //------------------------------------------------------------------------------
 template <typename TRACKER, unsigned LPS, unsigned N>
 void LEDRing<TRACKER, LPS, N>::runProgram (LightProgram* program) {
+  state.sample = myHFC->currentHFCSample();
   tracker->currentPosition(myHFC->sampleNumber, state.beat, state.beatpos);
   state.hfc = (unsigned)(myHFC->rawHFC.mean());
   //Serial.println(state.hfc);
@@ -68,7 +69,6 @@ void LEDRing<TRACKER, LPS, N>::runProgram (LightProgram* program) {
     program->pixel(i, state, c);
     setPixel(i, c.rgbPack());
   }
-  ++state.id;
   leds->show();
 
   /*

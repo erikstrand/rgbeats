@@ -29,7 +29,6 @@ unsigned MusicState::random () const {
   return a;
 }
 
-
 //------------------------------------------------------------------------------
 unsigned MusicState::hfcLin (unsigned scale) const {
   // HFC maxes out around 3 million, which we need to fit in a 16 bit word.
@@ -60,6 +59,23 @@ unsigned MusicState::onsetSaw (unsigned scale, unsigned decay, bool useMaxSignif
   unsigned rise = (useMaxSignificance ? maxSignificance : onsetSignificance) * scale / 3;
   rise = rise - rise * samplesSinceOnset / decay;
   return (rise >> 1) + ((rise & 0x1) ? 1 : 0);
+}
+
+//------------------------------------------------------------------------------
+void SawDecay::update (unsigned sample, unsigned height) {
+  if (currentHeight > 0) {
+    unsigned decay = (sample - lastSample) * decayFall / decayTime;
+    if (decay < lastHeight) {
+      currentHeight = lastHeight - decay;
+    } else {
+      currentHeight = 0;
+    }
+  }
+ 
+  if (height > currentHeight) {
+    lastHeight = currentHeight = height;
+    lastSample = sample;
+  }
 }
 
 //------------------------------------------------------------------------------

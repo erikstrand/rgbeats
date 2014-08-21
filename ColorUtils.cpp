@@ -7,7 +7,99 @@
 
 
 //------------------------------------------------------------------------------
-void Color::hsvComponents (unsigned& h, unsigned& s, unsigned& v) const {
+void Color::rgbComponents (int& r, int& g, int& b) const {
+  // neutral color degenerate case
+  if (x2 == 0 or x3 == 0) {
+    r = x3;
+    g = x3;
+    b = x3;
+    return;
+  }
+
+  int chroma = x2 * x3 / 255; // s * v
+
+  // green == blue (red) degenerate case
+  if (x1 == 0) {
+    r = x3;
+    g = b = x3 - chroma;
+    return;
+  }
+
+  // red == green (yellow) degenerate case
+  if (x1 == 256) {
+    r = g = x3;
+    b = x3 - chroma;
+    return;
+  }
+
+  // red == blue (green) degenerate case
+  if (x1 == 512) {
+    g = x3;
+    r = b = x3 - chroma;
+    return;
+  }
+
+  // green == blue (cyan) degenerate case
+  if (x1 == 768) {
+    g = b = x3;
+    r = x3 - chroma;
+    return;
+  }
+
+  // red == green (blue) degenerate case
+  if (x1 == 1024) {
+    b = x3;
+    r = g = x3 - chroma;
+    return;
+  }
+
+  // red == blue (magenta) degenerate case
+  if (x1 == 1280) {
+    r = b = x3;
+    g = x3 - chroma;
+    return;
+  }
+
+  // general case
+  int v = x3;
+  int sextant = x1 / 256;
+  int remainder = x1 % 256;
+  r = g = b = 0;
+  switch (sextant) {
+    case 0:
+      r = chroma;
+      g = chroma * remainder / 255;
+      break;
+    case 1:
+      r = chroma * (255 - remainder) / 255;
+      g = chroma;
+      break;
+    case 2:
+      g = chroma;
+      b = chroma * remainder / 255;
+      break;
+    case 3:
+      g = chroma * (255 - remainder) / 255;
+      b = chroma;
+      break;
+    case 4:
+      r = chroma * remainder / 255;
+      b = chroma;
+      break;
+    default:
+      r = chroma;
+      b = chroma * (255 - remainder) / 255;
+      break;
+  }
+
+  int m = v - chroma;
+  r += m;
+  g += m;
+  b += m;
+}
+
+//------------------------------------------------------------------------------
+void Color::hsvComponents (int& h, int& s, int& v) const {
   // neutral color degenerate case
   if (x1 == x2 and x2 == x3) {
     h = 0; // h
@@ -61,9 +153,9 @@ void Color::hsvComponents (unsigned& h, unsigned& s, unsigned& v) const {
   // now we can assume that no two components are equal
   v = (x1 > x2) ? x1 : x2;
   if (x3 > v) { v = x3; }
-  unsigned min = (x1 < x2) ? x1 : x2;
+  int min = (x1 < x2) ? x1 : x2;
   if (x3 < min) { min = x3; }
-  unsigned chroma = v - min;
+  int chroma = v - min;
 
   if (v == x1) {
     if (x2 > x3) {
@@ -76,10 +168,9 @@ void Color::hsvComponents (unsigned& h, unsigned& s, unsigned& v) const {
   } else if (v == x2) {
     if (x3 > x1) {
       // sextant = 2;
-      h = 512 + 255 * ((int)(x3) - x1) / chroma;
+      h = 512 + 255 * (x3 - x1) / chroma;
     } else {
       // sextant = 1;
-      //h = 256 + 255 * (x1 - x3) / chroma;
       h = 512 - 255 * (x1 - x3) / chroma;
     }
   } else {
@@ -93,97 +184,5 @@ void Color::hsvComponents (unsigned& h, unsigned& s, unsigned& v) const {
   }
 
   s = 255 * chroma / v;
-}
-
-//------------------------------------------------------------------------------
-void Color::rgbComponents (unsigned& r, unsigned& g, unsigned& b) const {
-  // neutral color degenerate case
-  if (x2 == 0 or x3 == 0) {
-    r = x3;
-    g = x3;
-    b = x3;
-    return;
-  }
-
-  unsigned chroma = x2 * x3 / 255; // s * v
-
-  // green == blue (red) degenerate case
-  if (x1 == 0) {
-    r = x3;
-    g = b = x3 - chroma;
-    return;
-  }
-
-  // red == green (yellow) degenerate case
-  if (x1 == 256) {
-    r = g = x3;
-    b = x3 - chroma;
-    return;
-  }
-
-  // red == blue (green) degenerate case
-  if (x1 == 512) {
-    g = x3;
-    r = b = x3 - chroma;
-    return;
-  }
-
-  // green == blue (cyan) degenerate case
-  if (x1 == 768) {
-    g = b = x3;
-    r = x3 - chroma;
-    return;
-  }
-
-  // red == green (blue) degenerate case
-  if (x1 == 1024) {
-    b = x3;
-    r = g = x3 - chroma;
-    return;
-  }
-
-  // red == blue (magenta) degenerate case
-  if (x1 == 1280) {
-    r = b = x3;
-    g = x3 - chroma;
-    return;
-  }
-
-  // general case
-  unsigned v = x3;
-  unsigned sextant = x1 / 256;
-  unsigned remainder = x1 % 256;
-  r = g = b = 0;
-  switch (sextant) {
-    case 0:
-      r = chroma;
-      g = chroma * remainder / 255;
-      break;
-    case 1:
-      r = chroma * (255 - remainder) / 255;
-      g = chroma;
-      break;
-    case 2:
-      g = chroma;
-      b = chroma * remainder / 255;
-      break;
-    case 3:
-      g = chroma * (255 - remainder) / 255;
-      b = chroma;
-      break;
-    case 4:
-      r = chroma * remainder / 255;
-      b = chroma;
-      break;
-    default:
-      r = chroma;
-      b = chroma * (255 - remainder) / 255;
-      break;
-  }
-
-  unsigned m = v - chroma;
-  r += m;
-  g += m;
-  b += m;
 }
 
