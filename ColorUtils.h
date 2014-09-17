@@ -23,6 +23,8 @@ inline void unpackColor (unsigned color, int& r, int& g, int& b) {
 //------------------------------------------------------------------------------
 class Color {
 public:
+  // For RGB representation, x1 is red, x2 green, and x3 blue. 0 <= xi < 256.
+  // For HSV, x1 is hue, x2 value, and x3 chroma. 0 <= x1 < 1536, 0 <= x2 < 256, 0 <= x2 < 256.
   int x1;
   int x2;
   int x3;
@@ -38,6 +40,7 @@ public:
   inline void hsvRepresentation ();
   inline Color& operator= (Color const& c) { x1 = c.x1; x2 = c.x2; x3 = c.x3; hsv = c.hsv; return *this; }
   inline static int addSaturate (int a, int b) { int c = a + b; if (c > 255) { c = 255; } else if (c < 0) { c = 0; } return c; }
+  inline static int addSaturateOne (int a, int b) { int c = a + b; if (c > 255) { c = 255; } else if (c < 1) { c = (a == 0) ? 0 : 1; } return c; }
 private:
   void rgbComponents (int& r, int& g, int& b) const;
   void hsvComponents (int& r, int& g, int& b) const;

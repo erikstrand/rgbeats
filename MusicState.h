@@ -55,17 +55,47 @@ public:
 template <unsigned N>
 class FlickerFeature {
 public:
-  unsigned sample;
-  unsigned timescale;
-  int scale;
-  int step;  
-  int correlation;
-  int16_t value[N]; 
+  unsigned sample;    // last sample at which flicker values were udated
+  unsigned timescale; // flicker values update after this many samples
+  int scale; // flicker values stay within range -scale and scale
+  int step;  // amount that flicker values change each update cycle
+  int correlation; // percentage correlation (not in strict statistical sense) with neighboring 4 pixels
+  int16_t value[N]; // amount that each pixel's brightness will be ch
 public:
-  FlickerFeature (): sample(0), timescale(4), scale(512), step(33), correlation(185) { memset(value, 0, N*sizeof(int16_t)); }
+  FlickerFeature (): sample(0), timescale(4), scale(512), step(33), correlation(73) { for (unsigned i=0; i<N; ++i) { value[i] = 0; } }
+  void init (XorShift32& rand);
+  inline void lanternsMode () { timescale = 5; scale = 512; step = 10; correlation = 75; for (unsigned i=0; i<N; ++i) { value[i] = 0; } }
   void update (MusicState const& state);
   int height (unsigned x) const { return value[x]; } 
 };
+
+template <unsigned N>
+void FlickerFeature<N>::init (XorShift32& rand) {
+  /*
+  unsigned mod20 = rand.uint32() % 20;
+  switch (mod20) {
+    case 19:
+      timescale = 7;
+      break;
+    case 18:
+      timescale = 6;
+      break;
+    case 0:
+      timescale = 2;
+      break;
+    default:
+      timescale = 2 + rand.uint32() % 3;
+  }
+  */
+  timescale = 3 + rand.uint32() % 7;
+
+  scale = 100 + rand.uint32() % 250;
+  step =  scale / 15 - 10 + rand.uint32() % 12;
+  if (step < 1) { step = 1; }
+  else if (step >= scale) { step = scale / 2; }
+
+  correlation = 25 + rand.uint32() % 75;
+}
 
 template <unsigned N>
 void FlickerFeature<N>::update (MusicState const& state) {
@@ -90,7 +120,7 @@ void FlickerFeature<N>::update (MusicState const& state) {
       sum += value[x];
       sum += value[(x + 1) % N];
       sum += value[(x + 2) % N];
-      value[x] = (correlation * sum / 5 + (256 - correlation) * value[x]) / 256;
+      value[x] = (correlation * sum / 5 + (100 - correlation) * value[x]) / 100;
     }
   }
 }

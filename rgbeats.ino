@@ -10,6 +10,9 @@
 #include "BeatTracker.h"
 #include "esProfiler.h"
 #include "LightProgram.h"
+#include "LightProgramTemplates.h"
+#include "LightMaster.h"
+#include "MusicState.h"
 #include "LEDRing.h"
 #include "ColorUtils.h"
 
@@ -44,9 +47,9 @@ AudioControlSGTL5000 audioShield;
 
 //------------------------------------------------------------------------------
 // WS2811 constants
-const int ledsPerStrip = 200;
+const int ledsPerStrip = 173;
 const int nStrips = 4;
-const int nLeds = 800;
+const int nLeds = 692;
 DMAMEM int displayMemory[ledsPerStrip*6];
 int drawingMemory[ledsPerStrip*6];
 const int config = WS2811_GRB | WS2811_800kHz;
@@ -97,25 +100,37 @@ LEDRing< BeatTracker<hfcWindow, samplesPerHFC, HFCPerBeatHypothesis>, ledsPerStr
 
 //------------------------------------------------------------------------------
 CubeHelixScale cubehelixScale;
+const int COLORPIN = A11;
 
 //------------------------------------------------------------------------------
-Solid<nLeds> solid1(0x000409);
+RingBufferWithMedian<int, 64> brightnessControlBuffer;
+RingBufferWithMedian<int, 64> colorControlBuffer;
+LightMaster lightMaster;
+// base programs
+Solid<nLeds> solid1;
+ShiftBrightnessOnset<NLEDS> shiftBright;
+/*
+SpectrumProgram<nLeds> spectrum1;
+
+// effect filters
+FlickerBrightness<nLeds> flicker;
+ShiftBrightnessOnset<nLeds> shiftBright;
+ShiftColorOnset<nLeds> shiftColor;
+
+// other
 //Solid<nLeds> solidGlow(0xA02000);
 Solid<nLeds> solidGlow(0x150050);
 //Solid<nLeds> solidGlow(0x5000C0);
 Solid<nLeds> solidBlack(0x000000);
-Flicker<nLeds> flicker(&solidGlow);
-SpectrumProgram<nLeds> spectrum1;
-SpectrumProgram<nLeds/16> spectrum2;
 
-ColorShifter<nLeds> shifter1(&spectrum2);
-VUMeter<nLeds> vu1(&shifter1);
-VUMeter<nLeds/16> vu2(&spectrum2);
+ColorShifter<nLeds> shifter1;
+VUMeter<nLeds> vu1;
+VUMeter<nLeds/16> vu2;
 
-LinearInterpolator interpolate1(&vu1, nLeds, nLeds/2);
-ProgramRepeater<nLeds> doublevu(&vu1, nLeds/16, 16);
-Lanterns<nLeds> lanterns1(&flicker, &solidBlack, 8, 6);
-RotateProgram<nLeds> rotate1(&lanterns1, nLeds-3);
+ProgramRepeater<nLeds> doublevu(nLeds/16, 16);
+Lanterns<nLeds> lanterns1(8, 6);
+RotateProgram<nLeds> rotate1(nLeds-3);
+*/
 
 
 //------------------------------------------------------------------------------
@@ -136,6 +151,23 @@ void setup() {
   Serial.println();
 
   pinMode(0, INPUT_PULLUP); // Mode switch
+  pinMode(A10, INPUT); // Mode switch
+  pinMode(COLORPIN, INPUT); // Mode switch
+
+  /*
+  // Setup lights
+  flicker.connect(&solidGlow);
+  //shifter1.connect(&spectrum2);
+  vu1.connect(&shifter1);
+  //vu2.connect(&spectrum2);
+  doublevu.connect(&vu1);
+  lanterns1.connect(&flicker, 0);
+  lanterns1.connect(&solidBlack, 1);
+  rotate1.connect(&lanterns1);
+  */
+  solid1.init(lightMaster.rand);
+  shiftBright.init(lightMaster.rand);
+  shiftBright.connect(&solid1);
 }
 
 void printColor (unsigned color) {
@@ -177,13 +209,12 @@ void loop() {
     tracker.addBeatHypothesis(extractor.beat);
     profiler.finish(trackerAddHypothesis);
 
-    // Test switch
-    if (digitalRead(0) == HIGH) {
-      // Lanterns
-      Serial.println("Lanterns mode");
-    } else {
-      Serial.println("Beats mode");
-    }
+    Serial.print(brightnessControlBuffer.mean());
+    Serial.print(", raw color: ");
+    Serial.print(analogRead(COLORPIN));
+    Serial.print(", color: ");
+    Serial.println(colorControlBuffer.mean());
+
 
     /*
     profiler.call(printing);
@@ -214,6 +245,24 @@ void loop() {
     */
   }
 
+  // check switch
+  if (digitalRead(0) == HIGH) {
+    // Lanterns
+    lightMaster.setMode(false);
+  } else {
+    lightMaster.setMode(true);
+  }
+
+  // check pots
+  //Serial.println(analogRead(A10));
+  //Serial.println(analogRead(A10));
+  brightnessControlBuffer.addSample(static_cast<int>(analogRead(A10) >> 2) - 128);
+  lightMaster.controls.brightnessAdjustment = brightnessControlBuffer.mean();
+  colorControlBuffer.addSample(static_cast<int>(analogRead(COLORPIN)));
+  //colorControlBuffer.addSample(static_cast<int>(analogRead(A12)) * 3 / 2);
+  lightMaster.controls.colorAdjustment = colorControlBuffer.mean();
+
+
   profiler.call(lightsync);
   /*
   if (tracker.state < 2) {
@@ -239,13 +288,14 @@ void loop() {
 
   //ledring.runProgram(&solid1);
   //ledring.runProgram(&flicker);
-  ledring.runProgram(&lanterns1);
+  //ledring.runProgram(&lanterns1);
   //ledring.runProgram(&rotate1);
   //ledring.runProgram(&spectrum1);
   //ledring.runProgram(&vu1);
-  //ledring.runProgram(&interpolate1);
   //ledring.runProgram(&doublevu);
   //ledring.runProgram(&shifter1);
+  ledring.runProgram(&lightMaster);
+  //ledring.runProgram(&shiftBright);
 
   profiler.finish(lightsync);
 

@@ -6,11 +6,9 @@
 #ifndef RGBEATS_LIGHTPROGRAM
 #define RGBEATS_LIGHTPROGRAM
 
-#include <arm_math.h>
+//#include <arm_math.h>
 #include "MusicState.h"
 #include "ColorUtils.h"
-
-extern const int ledsPerStrip;
 
 
 //==============================================================================
@@ -18,39 +16,7 @@ extern const int ledsPerStrip;
 //==============================================================================
 
 //------------------------------------------------------------------------------
-inline unsigned interpolateColor (unsigned c1, unsigned c2, unsigned diff, unsigned scale) {
-  unsigned x1, x2;
-  unsigned c3 = 0;
-
-  // interpolate red
-  x1 = c1 >> 16;
-  x2 = c2 >> 16;
-  if (x2 >= x1) {
-    c3 |= (x1 + (diff * (x2 - x1) / scale)) << 16;
-  } else {
-    c3 |= (x2 + ((scale - diff) * (x1 - x2) / scale)) << 16;
-  }
-
-  // interpolate green
-  x1 = (c1 >> 8) & 0xFF;
-  x2 = (c2 >> 8) & 0xFF;
-  if (x2 >= x1) {
-    c3 |= (x1 + (diff * (x2 - x1) / scale)) << 8;
-  } else {
-    c3 |= (x2 + ((scale - diff) * (x1 - x2) / scale)) << 8;
-  }
-
-  // interpolate blue
-  x1 = c1 & 0xFF;
-  x2 = c2 & 0xFF;
-  if (x2 >= x1) {
-    c3 |= x1 + (diff * (x2 - x1) / scale);
-  } else {
-    c3 |= x2 + ((scale - diff) * (x1 - x2) / scale);
-  }
-
-  return c3;
-};
+unsigned interpolateColor (unsigned c1, unsigned c2, unsigned diff, unsigned scale);
 
 //------------------------------------------------------------------------------
 class SpectrumInterpolator {
@@ -59,25 +25,9 @@ public:
 public:
   SpectrumInterpolator () {}
   // outMax is largest pixel value we'll ask for
-  inline unsigned pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax);
+  unsigned pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax);
 };
 
-unsigned SpectrumInterpolator::pixel (volatile uint16_t const* spectrum, unsigned n, unsigned outMax) {
-  unsigned n2 = n * spectrumMax;  // scale output pixel to common coords
-  unsigned s1 = n2 / outMax;      // index of first sample
-  unsigned diff = n2 - s1*outMax; // distance out from first sample
-  if (diff == 0) {
-    return 64*spectrum[s1];
-  } else {
-    unsigned v1 = spectrum[s1];
-    unsigned v2 = spectrum[s1+1];
-    if (v2 >= v1) {
-      return 64 * v1 + 64 * diff * (v2 - v1) / outMax;
-    } else {
-      return 64 * v2 + 64 * (outMax - diff) * (v1 - v2) / outMax;
-    }
-  }
-}
 
 
 //==============================================================================
@@ -88,11 +38,39 @@ unsigned SpectrumInterpolator::pixel (volatile uint16_t const* spectrum, unsigne
 // virtual base class for light programs
 class LightProgram {
 public:
+  LightProgram () {}
+  virtual ~LightProgram () {}
   // renders a single pixel
   virtual void pixel (unsigned x, MusicState const& state, Color& color) = 0;
   // used to consistently but randomly set internal parameters
   virtual void init (XorShift32& rand) {};
 };
+
+//------------------------------------------------------------------------------
+class LightFilter : public LightProgram {
+public:
+  LightProgram* p1;
+public:
+  LightFilter (): p1(0) {}
+  virtual ~LightFilter () {}
+  // After calling this, the LightProgram pulls pixels from p using render.
+  virtual void connect (LightProgram* p, unsigned n = 0) { p1 = p; };
+};
+
+//------------------------------------------------------------------------------
+class LightBranch : public LightFilter {
+public:
+  LightProgram* p2;
+public:
+  LightBranch (): p2(0) {}
+  virtual ~LightBranch () {}
+  // After calling this, the LightProgram pulls pixels from p using render.
+  virtual void connect (LightProgram* p, unsigned n = 0) {
+    if (n == 0) { p1 = p; }
+    else { p2 = p; }
+  }
+};
+
 
 //------------------------------------------------------------------------------
 class ColorScale {
@@ -102,294 +80,62 @@ public:
   virtual unsigned color (unsigned x) = 0;
 };
 
-
-//==============================================================================
-// Sources
-//==============================================================================
-
-
 //------------------------------------------------------------------------------
-template <unsigned N>
-class ColorScaleProgram : public LightProgram {
+class FadeTransition : public LightProgram {
 public:
-  ColorScale* cs;
-  ColorScaleProgram (ColorScale* c): cs(c) {}
-  void pixel (unsigned x, MusicState const& state, Color& color);
-};
-
-template <unsigned N>
-void ColorScaleProgram<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  color = Color(cs->color(x * ColorScale::max / N));
-}
-
-//------------------------------------------------------------------------------
-/*
-template <unsigned N>
-class BufferProgram : public LightProgram {
-};
-*/
-
-
-//==============================================================================
-// Sources
-//==============================================================================
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-class Solid : public LightProgram {
-private:
-  Color c;
-public:
-  Solid (unsigned c): c(c) {}
-  inline void pixel (unsigned x, MusicState const& state, Color& color) {
-    color = c;
-  }
-};
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-class Lanterns : public LightProgram {
-private:
   LightProgram* p1;
   LightProgram* p2;
-  unsigned nLanterns;
-  unsigned width;
-  unsigned separation;
+  // 0 is just run program 1, 1 is transition cued, 2 is transition happening
+  unsigned transitionState;
+  unsigned transitionSamples;
+  unsigned startSample;
 public:
-  inline Lanterns (LightProgram* lp1, LightProgram* lp2, unsigned l, unsigned w): p1(lp1), p2(lp2), nLanterns(l), width(w) {
-    separation = N / nLanterns;
+  FadeTransition (): transitionState(0) {}
+  void connect (LightProgram* p, unsigned n = 0) {
+    if (n == 0) { p1 = p; }
+    else { p2 = p; }
   }
+  inline void cueProgram (LightProgram* p) { p2 = p; }
+  inline void beginTransition (unsigned samples) { transitionSamples = samples; transitionState = 1; }
   void pixel (unsigned x, MusicState const& state, Color& color);
+  inline bool inTransition () const { return transitionState > 0; }
 };
 
-template <unsigned N>
-void Lanterns<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  if ((x + width / 2) % separation < width) {
-    p1->pixel(x, state, color);
-  } else {
-    p2->pixel(x, state, color);
-  }
-}
-
 //------------------------------------------------------------------------------
-template <unsigned N>
-class SpectrumProgram : public LightProgram {
-private:
-  SpectrumInterpolator si;
+class FinalControl : public LightFilter {
 public:
-  inline SpectrumProgram () {}
+  int brightnessAdjustment;
+  int colorAdjustment;
+public:
+  inline FinalControl (): brightnessAdjustment(0), colorAdjustment(0) {}
   inline void pixel (unsigned x, MusicState const& state, Color& color);
 };
 
-//------------------------------------------------------------------------------
-template <unsigned N>
-class VUMeter : public LightProgram {
-public:
-  LightProgram* p1;
-  VUMeter (LightProgram* p): p1(p) {}
-  inline void pixel (unsigned x, MusicState const& state, Color& color);
-};
-
-template <unsigned N>
-void VUMeter<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  unsigned max = state.hfcLin(N);
-  if (max >= N) { max = N; }
-  if (x <= max) {
-    p1->pixel(x, state, color);
-  } else {
-    color = Color(0x000000);
-  }
+void FinalControl::pixel (unsigned x, MusicState const& state, Color& color) {
+  p1->pixel(x, state, color);
+  color.hsvRepresentation();
+  color.x3 = Color::addSaturateOne(color.x3, brightnessAdjustment);
+  color.x1 += colorAdjustment;
+  color.x1 %= 1536;
 }
 
+
 //==============================================================================
-// Filters
+// Utilities
 //==============================================================================
 
 //------------------------------------------------------------------------------
-template <unsigned N>
-class RotateProgram : public LightProgram {
-public:
-  LightProgram* p1;
-  unsigned rotation;
-  RotateProgram (LightProgram* p, unsigned r): p1(p), rotation(r) {}
-  inline void pixel (unsigned x, MusicState const& state, Color& color) {
-    if (x < rotation) { x += N; }
-    p1->pixel(x - rotation, state, color);
-  }
-};
-
-//------------------------------------------------------------------------------
-class LinearInterpolator : public LightProgram {
+class LinearInterpolator : public LightFilter {
 private:
-  LightProgram* p1;
   unsigned n1; // number of pixels generated by p1
   unsigned n2; // number of pixels desired
   bool flip;   // if true, the program is flipped in addition to stretched
 public:
-  LinearInterpolator (LightProgram* p, unsigned n1, unsigned n2): p1(p), n1(n1), n2(n2), flip(false) {}
-  inline void setProgram (LightProgram* p) { p1 = p; }
+  LinearInterpolator (unsigned n1, unsigned n2): n1(n1), n2(n2), flip(false) {}
   inline void setBounds (unsigned new_n1, unsigned new_n2) { n1 = new_n1; n2 = new_n2; }
   inline void setFlip (bool f) { flip = f; }
   void pixel (unsigned x, MusicState const& state, Color& color);
 };
-
-void LinearInterpolator::pixel (unsigned x, MusicState const& state, Color& color) {
-  unsigned x2 = x * n1;  // scale output pixel to common coords
-  if (flip) { x2 = n1 * n2 - x2; }
-  unsigned s1 = x2 / n2; // index of first sample
-  unsigned diff = x2 - s1*n2; // distance out from first sample
-  if (diff == 0) {
-    p1->pixel(s1, state, color);
-  } else {
-    Color c1, c2;
-    p1->pixel(s1, state, c1);
-    p1->pixel(s1 + 1, state, c2);
-    color = Color(interpolateColor(c1.rgbPack(), c2.rgbPack(), diff, n2));
-  }
-}
-
-//------------------------------------------------------------------------------
-/*
-template <unsigned N>
-class ProgramMapper : public LightProgram {
-public:
-  static const unsigned maxPrograms = 16;
-  unsigned splits[maxPrograms];
-  bool flips[maxPrograms];
-  LightProgram* programs[maxPrograms];
-  unsigned activePrograms;
-public:
-   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
-};
-
-template <unsigned N>
-unsigned ProgramMapper<N>::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
-}
-*/
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-class ProgramRepeater : public LightProgram {
-public:
-  //LightProgram* p1;
-  LinearInterpolator lin;
-  unsigned copies;
-  bool flipOdd;
-public:
-  ProgramRepeater (LightProgram* p, unsigned l, unsigned c): lin(p, l, N/c), copies(c), flipOdd(true) {}
-  void pixel (unsigned x, MusicState const& state, Color& color);
-};
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-void ProgramRepeater<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  unsigned ledsPerCopy = N / copies;
-  unsigned program_number = x / ledsPerCopy;
-  unsigned pixel_number = x % ledsPerCopy;
-  if (flipOdd && (program_number & 0x1)) {
-    lin.setFlip(true);
-  } else {
-    lin.setFlip(false);
-  }
-  lin.pixel(pixel_number, state, color);
-}
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-class ColorShifter : public LightProgram {
-private:
-  LightProgram *p1;
-  SawDecay sd1;
-  unsigned sample;
-public:
-  ColorShifter (LightProgram* p): p1(p), sd1(5, 2), sample(0) {}
-  void pixel (unsigned x, MusicState const& state, Color& color);
-};
-
-template <unsigned N>
-void ColorShifter<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  if (state.sample != sample) {
-    sample = state.sample;
-    sd1.update(state.sample, state.onsetSaw(1024, 10));
-    //Serial.println(sd1.height());
-  }
-  p1->pixel(x, state, color);
-  
-  // pulse with hfc
-  /*
-  color.hsvRepresentation();
-  unsigned colorAdd = state.onsetSaw();
-  color.x1 += colorAdd;
-  color.x1 %= 1536;
-  */
-
-  // pulse with onsets
-  color.hsvRepresentation();
-  if (state.samplesSinceOnset < 15) {
-    color.x3 += state.onsetSaw(25, 15);
-  }
-  int oldx1 = color.x1;
-  color.x1 += sd1.height();
-  color.x1 %= 1536;
-  //if (x == 10) { Serial.print(oldx1); Serial.print(" + "); Serial.print(sd1.height()); Serial.print(" --> "); Serial.print(color.x1); Serial.print(" at "); Serial.println(state.sample); }
-
-  // pulse with beat
-  /*
-  color.hsvRepresentation();
-  unsigned quarterCounter = state.beat % 4;
-  color.x3 += (1024*quarterCounter + state.beatpos) / 400;
-  */
-
-  // saturate with hfc
-  /*
-  color.hsvRepresentation();
-  unsigned hfc = state.hfc;
-  //hfc >>= 16;
-  //hfc = log2_fp(hfc);
-  color.x2 += hfc / 300000;
-  color.x2 &= 0xFF;
-  */
-
-  // rotate with beat
-  /*
-  color.hsvRepresentation();
-  unsigned quarterCounter = state.beat % 8;
-  color.x1 += (1024*quarterCounter + state.beatpos) * 1536 / 8192;
-  color.x1 = color.x1 % 1536;
-  */
-}
-
-//------------------------------------------------------------------------------
-template <unsigned N>
-class Flicker : public LightProgram {
-public:
-  LightProgram* p1;
-  FlickerFeature<N> randomwalk;
-public:
-  Flicker (LightProgram* p): p1(p) {}
-  inline void pixel (unsigned x, MusicState const& state, Color& color);
-};
-
-template <unsigned N>
-void Flicker<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  randomwalk.update(state);
-  p1->pixel(x, state, color);
-  color.hsvRepresentation();
-  color.x3 = Color::addSaturate(color.x3, randomwalk.height(x));
-}
-
-
-//------------------------------------------------------------------------------
-/*
-class BufferProgram : public LightProgram {
-public:
-   unsigned buffer[ledsPerStrip];
-   LightProgram* p;
-   unsigned currentid;
-   BufferProgram (LightProgram* p_): p(p_), currentid(~0) { memset(buffer, 0, ledsPerStrip*sizeof(unsigned)); }
-   unsigned pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum);
-};
-*/
 
 
 const unsigned cubehelix[] = {
@@ -421,28 +167,8 @@ public:
   unsigned color (unsigned x);
 };
 
-//------------------------------------------------------------------------------
-template <unsigned N>
-void SpectrumProgram<N>::pixel (unsigned x, MusicState const& state, Color& color) {
-  unsigned power = si.pixel(state.spectrum, x, N-1);
-  power &= 0xFF; // make sure we saturate at 255
-  color = Color(cubehelix2[power]);
-}
 
 /*
-//------------------------------------------------------------------------------
-
-unsigned BufferProgram::pixel (unsigned x, unsigned id, unsigned beat, unsigned beatpos, unsigned hfc, volatile uint16_t const* spectrum) {
-   if (id != currentid) {
-      currentid = id;
-      for (unsigned i=0; i<ledsPerStrip; ++i) {
-         buffer[i] = p->pixel(x, id, beat, beatpos, hfc, spectrum);
-      }
-   }
-   return buffer[x];
-}
-
-
 //------------------------------------------------------------------------------
 unsigned CubeHelixScale::color (unsigned x) {
   return cubehelix2[x * 256 / ColorScale::max];
