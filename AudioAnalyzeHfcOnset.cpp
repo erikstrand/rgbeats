@@ -121,6 +121,7 @@ void AudioAnalyzeHfcOnset::update(void)
       copy_to_fft_buffer(buffer+0x600, blocklist[6]->data);
       copy_to_fft_buffer(buffer+0x700, blocklist[7]->data);
       /*
+      // ToDo: compiler flag
       // This code can be used to find max and min - helpful for adjusting levels;
       int16_t max = 0;
       int16_t min = 0;
@@ -134,6 +135,7 @@ void AudioAnalyzeHfcOnset::update(void)
       Serial.print("min: "); Serial.println(min);
       */
       if (window) apply_window_to_fft_buffer(buffer, window);
+      // ToDo: compiler switch
       arm_cfft_radix4_q15(&fft_inst, buffer);
       profiler.finish(analyzefft);
 

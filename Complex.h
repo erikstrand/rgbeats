@@ -7,6 +7,9 @@
 #define ESTDLIB_COMPLEX
 
 #include <cmath>
+#include <cstring>
+#include "CompileConfig.h"
+#include <ostream>
 
 
 //==============================================================================
@@ -17,9 +20,9 @@
 template<typename T>
 inline T absval (T const& t) { return t.abs(); }
 template<> inline unsigned absval<unsigned> (unsigned const& x) { return x; }
-template<> inline int      absval<int>      (int const& x)      { return abs(x); }
-template<> inline float    absval<float>    (float const& x)    { return abs(x); }
-template<> inline double   absval<double>   (double const& x)   { return abs(x); }
+template<> inline int      absval<int>      (int const& x)      { return x >= 0 ? x : -x; }
+template<> inline float    absval<float>    (float const& x)    { return fabs(x); }
+template<> inline double   absval<double>   (double const& x)   { return fabs(x); }
 
 
 //==============================================================================
@@ -51,6 +54,7 @@ public:
    T& im ()       { return _im; }
    T  re () const { return _re; }
    T  im () const { return _im; }
+   T* asArray ()  { return &_re; }
    
    // Conjugation and Inversion
    T norm () const;
@@ -78,13 +82,12 @@ public:
    bool operator!= (Complex const& z) const { return !(*this == z); }
 };
 
-/*
+//#compileif mac
 template <class T>
 std::ostream& operator<< (std::ostream& os, Complex<T> const& z) {
    os << z.re() << " + " << z.im() << 'i';
    return os;
 }
-*/
 
 
 //==============================================================================
@@ -122,6 +125,10 @@ inline void Complex<int>::zero (Complex<int>* data, unsigned n) {
 template <>
 inline void Complex<int16_t>::zero (Complex<int16_t>* data, unsigned n) {
   memset(data, 0, n * sizeof(Complex<int16_t>));
+}
+template <>
+inline void Complex<int32_t>::zero (Complex<int32_t>* data, unsigned n) {
+  memset(data, 0, n * sizeof(Complex<int32_t>));
 }
 
 

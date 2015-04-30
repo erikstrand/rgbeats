@@ -6,6 +6,8 @@
 #ifndef RGBEATS_UTILS
 #define RGBEATS_UTILS
 
+#include "Complex.h"
+
 
 //==============================================================================
 // Modular arithmetic
@@ -31,12 +33,18 @@ template <> inline bool isMultipleOf<2048> (unsigned m) { return (m & 0x7FF) == 
 //------------------------------------------------------------------------------
 template <unsigned N>
 inline unsigned modularPlusOne (unsigned m) {
-  if (m + 1 == N) {
+  unsigned next = ++m;
+  if (next < N) {
+    return next;
+  }
+  if (next == N) {
     return 0;
   }
-  return m;
+  return next % N;
 }
 
+template <> inline unsigned modularPlusOne<2>    (unsigned m) { return ((m + 1) & 0x1);   }
+template <> inline unsigned modularPlusOne<4>    (unsigned m) { return ((m + 1) & 0x3);   }
 template <> inline unsigned modularPlusOne<8>    (unsigned m) { return ((m + 1) & 0x7);   }
 template <> inline unsigned modularPlusOne<16>   (unsigned m) { return ((m + 1) & 0xF);   }
 template <> inline unsigned modularPlusOne<32>   (unsigned m) { return ((m + 1) & 0x1F);  }
@@ -68,11 +76,9 @@ template <> inline unsigned& modularIncrement<2048> (unsigned& m) { ++m; return 
 //------------------------------------------------------------------------------
 template <unsigned N>
 inline unsigned& modularDecrement (unsigned& m) {
-  if (m == 0) {
-    m = N - 1;
-  } else {
-    --m;
-  }
+  if (m == 0) { m = N - 1; }
+  else if (m < N) { --m; }
+  else { m = (m - 1) % N; }
   return m;
 }
 
@@ -120,7 +126,6 @@ public:
     return *this;
   }
 };
-
 
 #endif
 

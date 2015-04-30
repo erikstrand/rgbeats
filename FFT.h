@@ -8,9 +8,11 @@
 
 #include <cmath>
 #include "Complex.h"
+#include "CompileConfig.h"
 
+#ifndef COMPILEFORMAC
 #include "esProfiler.h"
-extern Profiler profiler;
+#endif
 
 
 //==============================================================================
@@ -81,7 +83,8 @@ void bitReverse (T* data, unsigned n) {
 // n must be a power of 2.
 template <typename T>
 void fft (Complex<T>* data, unsigned n, bool inverse) {
-   profiler.call(otherfft);
+   //#compileif
+   //profiler.call(otherfft);
    // bit reverse our data
    bitReverse< Complex<T> >(data, n);
    
@@ -127,7 +130,8 @@ void fft (Complex<T>* data, unsigned n, bool inverse) {
          data[i].im() *= s;
       }
    }
-   profiler.finish(otherfft);
+   //#compileif
+   //profiler.finish(otherfft);
 }
 
 //------------------------------------------------------------------------------

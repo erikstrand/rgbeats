@@ -26,3 +26,13 @@ These are the features that are used to generate light patterns.
 ColorUtils, LEDRing, and LightProgram control the generation of the light patterns.
 They rely on the output of the audio processing code, and control a ring of LEDs
 using the OctoWS2811 library.
+
+
+Roadmap
+-------
+
+Immediate Goal: Refactor so that code can be compiled and run on Teensy or x86-64.
+- Need integer FFT library for mac
+- Bonus: pull out some code from AudioAnalyzeHfcOnset to minimize nonshared code
+- Determine Audio reading/writing solution for Mac (currently using homegrown code for reading, libMiniAiff for writing)
+
